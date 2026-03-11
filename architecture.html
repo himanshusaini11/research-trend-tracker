@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Research Trend Tracker — Architecture</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #080C14; min-height: 100vh; font-family: 'JetBrains Mono', monospace; color: #E2E8F0; padding: 32px 24px; }
+  h1 { font-size: 26px; font-weight: 700; color: #F1F5F9; letter-spacing: -0.5px; }
+  .meta { font-size: 10px; letter-spacing: 4px; color: #64748B; text-transform: uppercase; margin-bottom: 8px; }
+  .subtitle { margin-top: 8px; font-size: 12px; color: #64748B; }
+  .header { margin-bottom: 36px; border-bottom: 1px solid rgba(255,255,255,0.06); padding-bottom: 24px; }
+  .flow-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 28px; font-size: 11px; color: #475569; }
+  .flow-line { flex: 1; border-top: 1px dashed rgba(255,255,255,0.1); }
+  .layers { display: flex; flex-direction: column; gap: 12px; }
+  .layer {
+    border-radius: 8px; padding: 14px 18px;
+    transition: all 0.2s ease;
+    border: 1px solid rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.02);
+  }
+  .layer:hover { background: var(--layer-bg); border-color: var(--layer-border); }
+  .layer-label { font-size: 9px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 12px; font-weight: 700; }
+  .nodes { display: flex; gap: 10px; flex-wrap: wrap; }
+  .node {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 6px; padding: 10px 14px;
+    min-width: 155px; flex: 1 1 155px; max-width: 250px;
+    transition: all 0.15s ease; cursor: default;
+  }
+  .node:hover { border-color: var(--layer-color); background: var(--layer-bg); }
+  .node-header { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+  .node-icon { font-size: 13px; }
+  .node-name { font-size: 13px; font-weight: 600; color: #F1F5F9; }
+  .node-sub { font-size: 11px; color: #64748B; line-height: 1.5; }
+  .flows-section { margin: 24px 0; display: flex; flex-direction: column; gap: 6px; }
+  .flows-title { font-size: 10px; letter-spacing: 2px; color: #334155; text-transform: uppercase; margin-bottom: 8px; }
+  .flow-row {
+    display: flex; align-items: center; gap: 8px; font-size: 11px;
+    padding: 6px 10px; background: rgba(255,255,255,0.02);
+    border-radius: 4px; flex-wrap: wrap;
+  }
+  .flow-from { font-weight: 600; min-width: 110px; }
+  .flow-arrow { color: #334155; }
+  .flow-to { font-weight: 600; min-width: 110px; }
+  .flow-desc { color: #475569; }
+  .guarantees {
+    margin-top: 24px; border: 1px solid rgba(255,255,255,0.05);
+    border-radius: 8px; padding: 16px 18px; background: rgba(255,255,255,0.01);
+  }
+  .g-title { font-size: 9px; letter-spacing: 3px; color: #475569; text-transform: uppercase; margin-bottom: 12px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag { font-size: 11px; padding: 3px 10px; border-radius: 20px; }
+  .footer { margin-top: 20px; font-size: 10px; color: #1E293B; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="meta">System Architecture</div>
+  <h1>Research Trend Tracker</h1>
+  <div class="subtitle">Modular monolith &nbsp;&middot;&nbsp; Read/write split &nbsp;&middot;&nbsp; Production-ready from day one</div>
+</div>
+
+<div class="flow-bar">
+  <span style="color:#00D4FF">CLIENT</span>
+  <div class="flow-line"></div>
+  <span>&#9660; request flow</span>
+  <div class="flow-line"></div>
+  <span style="color:#FBBF24">INFRA</span>
+</div>
+
+<div class="layers" id="layers"></div>
+
+<div class="flows-section">
+  <div class="flows-title">Key Data Flows</div>
+  <div id="flowRows"></div>
+</div>
+
+<div class="guarantees">
+  <div class="g-title">Production Guarantees vs Reference Project</div>
+  <div class="tags" id="tags"></div>
+</div>
+
+<div class="footer">Hover over layers and nodes to inspect</div>
+
+<script>
+const layers = [
+  {
+    label: "CLIENT LAYER", color: "#00D4FF",
+    bg: "rgba(0,212,255,0.08)", border: "rgba(0,212,255,0.3)",
+    nodes: [
+      { icon: "&#x2B21;", name: "MCP Client", sub: "Claude / Cursor" },
+      { icon: "&#x2B21;", name: "REST Client", sub: "curl / Postman / App" },
+    ]
+  },
+  {
+    label: "API LAYER", color: "#A78BFA",
+    bg: "rgba(167,139,250,0.08)", border: "rgba(167,139,250,0.3)",
+    nodes: [
+      { icon: "&#x25C8;", name: "FastAPI", sub: "JWT Auth &middot; Rate Limiter &middot; Pydantic v2" },
+      { icon: "&#x25C8;", name: "FastMCP Server", sub: "get_trends &middot; get_top_papers &middot; summarize_week" },
+    ]
+  },
+  {
+    label: "CORE SERVICES", color: "#34D399",
+    bg: "rgba(52,211,153,0.08)", border: "rgba(52,211,153,0.3)",
+    nodes: [
+      { icon: "&#x25C6;", name: "Analytics Engine", sub: "Trend scoring &middot; Time-window aggregation" },
+      { icon: "&#x25C6;", name: "LLM Summarizer", sub: "Ollama &middot; LangChain prompt chain" },
+      { icon: "&#x25C6;", name: "Topic Clusterer", sub: "Sentence Transformers &middot; BERTopic" },
+    ]
+  },
+  {
+    label: "INGESTION LAYER", color: "#FB923C",
+    bg: "rgba(251,146,60,0.08)", border: "rgba(251,146,60,0.3)",
+    nodes: [
+      { icon: "&#x25B8;", name: "Apache Airflow", sub: "Daily DAG &middot; Retry &middot; on_failure_callback" },
+      { icon: "&#x25B8;", name: "arXiv Fetcher", sub: "Metadata only &middot; Category filter" },
+      { icon: "&#x25B8;", name: "Keyword Indexer", sub: "Frequency counter &middot; Trend scorer" },
+    ]
+  },
+  {
+    label: "DATA LAYER", color: "#F472B6",
+    bg: "rgba(244,114,182,0.08)", border: "rgba(244,114,182,0.3)",
+    nodes: [
+      { icon: "&#x25A3;", name: "PostgreSQL + Timescale", sub: "Papers &middot; Keywords &middot; Trend timeseries" },
+      { icon: "&#x25A3;", name: "Redis", sub: "Trend cache &middot; Token bucket rate limiter" },
+    ]
+  },
+  {
+    label: "AWS INFRASTRUCTURE", color: "#FBBF24",
+    bg: "rgba(251,191,36,0.08)", border: "rgba(251,191,36,0.3)",
+    nodes: [
+      { icon: "&#x2601;", name: "ECS Fargate", sub: "API + Core services" },
+      { icon: "&#x2601;", name: "Airflow on ECS", sub: "Ingestion worker" },
+      { icon: "&#x2601;", name: "RDS PostgreSQL", sub: "Managed DB" },
+      { icon: "&#x2601;", name: "ElastiCache", sub: "Managed Redis" },
+      { icon: "&#x2601;", name: "Secrets Manager", sub: "No hardcoded creds" },
+    ]
+  },
+  {
+    label: "OBSERVABILITY", color: "#94A3B8",
+    bg: "rgba(148,163,184,0.08)", border: "rgba(148,163,184,0.3)",
+    nodes: [
+      { icon: "&#x25CE;", name: "Prometheus", sub: "Latency &middot; Error rate &middot; Cache hits" },
+      { icon: "&#x25CE;", name: "Grafana", sub: "Dashboards" },
+      { icon: "&#x25CE;", name: "structlog", sub: "Structured JSON logs" },
+    ]
+  },
+];
+
+const flows = [
+  { from: "Client", to: "API Layer", desc: "HTTPS + JWT auth / MCP protocol", color: "#00D4FF" },
+  { from: "API Layer", to: "Core Services", desc: "Internal function calls", color: "#A78BFA" },
+  { from: "Core Services", to: "Data Layer", desc: "SQL reads &middot; Redis cache r/w", color: "#34D399" },
+  { from: "Airflow DAG", to: "Data Layer", desc: "Daily writes &middot; keyword indexing", color: "#FB923C" },
+  { from: "All Services", to: "Observability", desc: "Metrics scrape &middot; structured logs", color: "#94A3B8" },
+];
+
+const guarantees = [
+  { label: "JWT Auth", color: "#34D399" },
+  { label: "Rate Limiting (Token Bucket)", color: "#34D399" },
+  { label: "Secrets Manager", color: "#34D399" },
+  { label: "Prometheus Metrics", color: "#34D399" },
+  { label: "Timescale time-series", color: "#34D399" },
+  { label: "MCP Server", color: "#00D4FF" },
+  { label: "LLM Summarizer", color: "#A78BFA" },
+  { label: "Real test assertions", color: "#34D399" },
+  { label: "Structured logging", color: "#34D399" },
+  { label: "No hardcoded secrets", color: "#34D399" },
+];
+
+// Render layers
+const layersEl = document.getElementById('layers');
+layers.forEach(layer => {
+  const div = document.createElement('div');
+  div.className = 'layer';
+  div.style.cssText = `border-left: 3px solid ${layer.color}; --layer-color: ${layer.color}; --layer-bg: ${layer.bg}; --layer-border: ${layer.border};`;
+  div.innerHTML = `
+    <div class="layer-label" style="color:${layer.color}">${layer.label}</div>
+    <div class="nodes">
+      ${layer.nodes.map(n => `
+        <div class="node" style="--layer-color:${layer.color};--layer-bg:${layer.bg}">
+          <div class="node-header">
+            <span class="node-icon" style="color:${layer.color}">${n.icon}</span>
+            <span class="node-name">${n.name}</span>
+          </div>
+          <div class="node-sub">${n.sub}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+  layersEl.appendChild(div);
+});
+
+// Render flows
+const flowsEl = document.getElementById('flowRows');
+flows.forEach(f => {
+  flowsEl.innerHTML += `
+    <div class="flow-row">
+      <span class="flow-from" style="color:${f.color}">${f.from}</span>
+      <span class="flow-arrow">&#x2500;&#x2500;&#x25B6;</span>
+      <span class="flow-to" style="color:${f.color}">${f.to}</span>
+      <span class="flow-desc">${f.desc}</span>
+    </div>
+  `;
+});
+
+// Render guarantee tags
+const tagsEl = document.getElementById('tags');
+guarantees.forEach(g => {
+  tagsEl.innerHTML += `<span class="tag" style="border:1px solid ${g.color}40;color:${g.color};background:${g.color}0D">&#10003; ${g.label}</span>`;
+});
+</script>
+</body>
+</html>
