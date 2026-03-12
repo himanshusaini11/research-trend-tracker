@@ -1,0 +1,104 @@
+from typing import Literal
+
+from pydantic import Field, PostgresDsn, RedisDsn, field_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # -------------------------------------------------------------------------
+    # App
+    # -------------------------------------------------------------------------
+    app_env: Literal["development", "staging", "production"] = "development"
+    app_name: str = "research-trend-tracker"
+    debug: bool = False
+
+    # -------------------------------------------------------------------------
+    # PostgreSQL
+    # -------------------------------------------------------------------------
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_user: str = "rtt"
+    postgres_password: str = Field(..., description="PostgreSQL password — required")
+    postgres_db: str = "rtt"
+
+    @property
+    def postgres_dsn(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    @property
+    def postgres_dsn_sync(self) -> str:
+        """Sync DSN for Alembic migrations."""
+        return (
+            f"postgresql+psycopg2://{self.postgres_user}:{self.postgres_password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{self.postgres_db}"
+        )
+
+    # -------------------------------------------------------------------------
+    # Redis
+    # -------------------------------------------------------------------------
+    redis_host: str = "localhost"
+    redis_port: int = 6379
+    redis_password: str | None = None
+    redis_db: int = 0
+
+    @property
+    def redis_dsn(self) -> str:
+        auth = f":{self.redis_password}@" if self.redis_password else ""
+        return f"redis://{auth}{self.redis_host}:{self.redis_port}/{self.redis_db}"
+
+    # -------------------------------------------------------------------------
+    # JWT
+    # -------------------------------------------------------------------------
+    jwt_secret: str = Field(..., description="JWT signing secret — required")
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 60
+
+    # -------------------------------------------------------------------------
+    # API keys (alternative auth)
+    # -------------------------------------------------------------------------
+    api_key_header: str = "X-API-Key"
+
+    # -------------------------------------------------------------------------
+    # Ollama / LLM
+    # -------------------------------------------------------------------------
+    ollama_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2"
+    ollama_request_timeout_seconds: int = 120
+
+    # -------------------------------------------------------------------------
+    # arXiv ingestion
+    # -------------------------------------------------------------------------
+    arxiv_categories: list[str] = Field(
+        default=["cs.AI", "cs.LG", "cs.CL", "stat.ML"],
+        description="arXiv category filters for ingestion",
+    )
+    arxiv_max_results_per_fetch: int = 500
+    arxiv_fetch_delay_seconds: float = 3.0  # respect arXiv rate limits
+
+    @field_validator("arxiv_categories", mode="before")
+    @classmethod
+    def parse_arxiv_categories(cls, v: object) -> object:
+        """Allow comma-separated string from env: ARXIV_CATEGORIES=cs.AI,cs.LG"""
+        if isinstance(v, str):
+            return [cat.strip() for cat in v.split(",") if cat.strip()]
+        return v
+
+    # -------------------------------------------------------------------------
+    # Rate limiting (Token Bucket via Redis)
+    # -------------------------------------------------------------------------
+    rate_limit_requests: int = 60       # tokens per window
+    rate_limit_window_seconds: int = 60  # refill window
+    rate_limit_burst: int = 10          # max burst above steady rate
+
+
+settings = Settings()  # type: ignore[call-arg]
