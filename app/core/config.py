@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import Field, PostgresDsn, RedisDsn, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -84,14 +84,6 @@ class Settings(BaseSettings):
     )
     arxiv_max_results_per_fetch: int = 500
     arxiv_fetch_delay_seconds: float = 3.0  # respect arXiv rate limits
-
-    @field_validator("arxiv_categories", mode="before")
-    @classmethod
-    def parse_arxiv_categories(cls, v: object) -> object:
-        """Allow comma-separated string from env: ARXIV_CATEGORIES=cs.AI,cs.LG"""
-        if isinstance(v, str):
-            return [cat.strip() for cat in v.split(",") if cat.strip()]
-        return v
 
     # -------------------------------------------------------------------------
     # Rate limiting (Token Bucket via Redis)
