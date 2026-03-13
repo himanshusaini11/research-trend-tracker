@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
-from sqlalchemy.dialects.postgresql import array as pg_array
+from sqlalchemy import any_, select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
@@ -51,7 +50,7 @@ async def get_top_papers(
         stmt = (
             select(Paper)
             .where(
-                Paper.categories.contains(pg_array([category])),
+                category == any_(Paper.categories),
                 Paper.published_at >= since,
             )
             .order_by(Paper.published_at.desc())
