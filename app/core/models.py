@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from sqlalchemy import DateTime, Float, Index, Integer, String, Text
+from sqlalchemy import DateTime, Float, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -41,10 +41,11 @@ class KeywordCount(Base):
     category: Mapped[str] = mapped_column(String(64), nullable=False)
     count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     window_date: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
+        DateTime(timezone=True), nullable=False
     )
 
     __table_args__ = (
+        UniqueConstraint("keyword", "category", "window_date", name="uq_keyword_counts_kw_cat_date"),
         Index("ix_keyword_counts_keyword_category", "keyword", "category"),
         Index("ix_keyword_counts_window_date", "window_date"),
     )
@@ -64,11 +65,12 @@ class TrendScore(Base):
     score: Mapped[float] = mapped_column(Float, nullable=False)
     trend_direction: Mapped[TrendDirection] = mapped_column(String(16), nullable=False)
     window_start: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False, index=True
+        DateTime(timezone=True), nullable=False
     )
     window_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (
+        UniqueConstraint("keyword", "category", "window_start", name="uq_trend_scores_kw_cat_start"),
         Index("ix_trend_scores_keyword_category", "keyword", "category"),
         Index("ix_trend_scores_window_start", "window_start"),
     )
