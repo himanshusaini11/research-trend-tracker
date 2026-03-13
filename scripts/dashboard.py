@@ -15,20 +15,27 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 API = "http://localhost:8000"
 
 
-@st.cache_resource
-def _auto_token() -> str:
-    """Generate a long-lived dashboard JWT from the shared secret in .env."""
+_token_cache: dict[str, str | datetime] = {}
+
+
+def _mint_token() -> tuple[str, datetime]:
+    """Mint a new JWT and return (token, expiry datetime)."""
     secret = os.environ.get("JWT_SECRET", "")
     algorithm = os.environ.get("JWT_ALGORITHM", "HS256")
     expire_minutes = int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-    payload = {
-        "sub": "dashboard",
-        "exp": datetime.now(UTC) + timedelta(minutes=expire_minutes),
-    }
-    return jwt.encode(payload, secret, algorithm=algorithm)
+    exp = datetime.now(UTC) + timedelta(minutes=expire_minutes)
+    token = jwt.encode({"sub": "dashboard", "exp": exp}, secret, algorithm=algorithm)
+    return token, exp
 
 
-TOKEN = _auto_token()
+def get_token() -> str:
+    """Return a valid JWT, regenerating if expired or within 5 minutes of expiry."""
+    exp = _token_cache.get("exp")
+    if exp is None or datetime.now(UTC) >= exp - timedelta(minutes=5):  # type: ignore[operator]
+        token, exp = _mint_token()
+        _token_cache["token"] = token
+        _token_cache["exp"] = exp
+    return _token_cache["token"]  # type: ignore[return-value]
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -192,7 +199,7 @@ hr { border-color: #1e1e2e !important; }
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
 def _auth_headers() -> dict:
-    return {"Content-Type": "application/json", "Authorization": f"Bearer {TOKEN}"}
+    return {"Content-Type": "application/json", "Authorization": f"Bearer {get_token()}"}
 
 @st.cache_data(ttl=60)
 def fetch_health() -> bool:
