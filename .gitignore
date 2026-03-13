@@ -12,24 +12,24 @@ build/
 .eggs/
 
 # =============================================================
-# Virtual environment — never commit this
+# Virtual environment
 # =============================================================
 .venv/
 venv/
 env/
 
 # =============================================================
-# Environment variables — the most important one
+# Environment variables
 # =============================================================
 .env
 .env.local
 .env.*.local
-!.env.example        # .env.example IS committed — it's a template
+!.env.example
 
 # =============================================================
 # uv
 # =============================================================
-# uv.lock IS committed — it's your reproducibility guarantee
+# uv.lock IS committed for reproducibility guarantee
 # pyproject.toml IS committed
 .uv-cache/
 
@@ -68,7 +68,7 @@ airflow/plugins/__pycache__/
 # =============================================================
 # IDE
 # =============================================================
-.vscode/settings.json    # personal VS Code settings — not project settings
+.vscode/settings.json
 .idea/
 *.swp
 *.swo
@@ -87,16 +87,12 @@ airflow/plugins/__pycache__/
 .aws/
 
 # =============================================================
-# Jupyter (if used for exploration)
+# Jupyter
 # =============================================================
 .ipynb_checkpoints/
 *.ipynb
 
 # =============================================================
-# NOT ignored — these are intentionally committed
+# Others
 # =============================================================
-# CLAUDE.md              — project instructions for Claude Code
-# .claude/settings.json  — Claude Code permission rules
-# uv.lock                — exact dependency versions
-# .python-version        — pinned Python version
-# .env.example           — secret template (no real values)
+CLAUDE.md
