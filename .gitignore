@@ -96,3 +96,5 @@ airflow/plugins/__pycache__/
 # Others
 # =============================================================
 CLAUDE.md
+prompts/
+instruction_docs/
