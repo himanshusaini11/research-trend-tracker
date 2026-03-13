@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Research Trend Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #0f0f1a;
+    --border: #1e1e2e;
+    --accent: #00ff88;
+    --accent2: #0088ff;
+    --accent3: #ff4466;
+    --text: #c8c8d8;
+    --text-dim: #555570;
+    --text-bright: #eeeeff;
+    --glow: 0 0 20px rgba(0,255,136,0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'IBM Plex Mono', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Scanline effect */
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  /* Grid background */
+  body::after {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Header */
+  header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 32px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo-area { flex: 1; }
+
+  .logo-tag {
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+    opacity: 0.8;
+  }
+
+  h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--text-bright);
+    letter-spacing: -0.5px;
+    line-height: 1;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    font-weight: 300;
+  }
+
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    font-size: 11px;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-dim);
+  }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulse 2s infinite;
+  }
+
+  .dot.red { background: var(--accent3); animation: none; }
+  .dot.blue { background: var(--accent2); animation: none; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; box-shadow: 0 0 6px var(--accent); }
+    50% { opacity: 0.4; box-shadow: none; }
+  }
+
+  /* Auth bar */
+  .auth-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 12px;
+  }
+
+  .auth-label { color: var(--text-dim); white-space: nowrap; }
+
+  .auth-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--accent);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    outline: none;
+  }
+
+  .auth-input::placeholder { color: var(--text-dim); opacity: 0.5; }
+
+  .btn {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 6px 14px;
+    cursor: pointer;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background: var(--accent);
+    color: var(--bg);
+    box-shadow: var(--glow);
+  }
+
+  .btn.blue {
+    border-color: var(--accent2);
+    color: var(--accent2);
+  }
+
+  .btn.blue:hover {
+    background: var(--accent2);
+    color: var(--bg);
+    box-shadow: 0 0 20px rgba(0,136,255,0.2);
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+
+  .stat-card:nth-child(2)::before { background: var(--accent2); }
+  .stat-card:nth-child(3)::before { background: #aa44ff; }
+  .stat-card:nth-child(4)::before { background: var(--accent3); }
+
+  .stat-card:hover { border-color: #2e2e4e; }
+
+  .stat-label {
+    font-size: 10px;
+    color: var(--text-dim);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .stat-value {
+    font-size: 36px;
+    font-weight: 600;
+    color: var(--text-bright);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-value.loading { color: var(--text-dim); font-size: 20px; }
+
+  .stat-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 8px;
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  /* Main grid */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 420px 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* Panels */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .panel-title span {
+    color: var(--accent);
+    margin-right: 8px;
+  }
+
+  .panel-body { padding: 0; }
+
+  /* Category selector */
+  .cat-selector {
+    display: flex;
+    gap: 0;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cat-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    padding: 5px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-right: -1px;
+  }
+
+  .cat-btn:first-child { border-radius: 3px 0 0 3px; }
+  .cat-btn:last-child { border-radius: 0 3px 3px 0; }
+
+  .cat-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--bg);
+    z-index: 1;
+    position: relative;
+  }
+
+  /* Trend bars */
+  .trend-list { padding: 0; }
+
+  .trend-item {
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(30,30,46,0.5);
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    transition: background 0.15s;
+  }
+
+  .trend-item:hover { background: rgba(255,255,255,0.02); }
+  .trend-item:last-child { border-bottom: none; }
+
+  .trend-rank {
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .trend-keyword {
+    font-size: 13px;
+    color: var(--text-bright);
+  }
+
+  .trend-bar-wrap {
+    flex: 1;
+    position: relative;
+  }
+
+  .trend-bar {
+    height: 3px;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+    box-shadow: 0 0 8px rgba(0,255,136,0.3);
+  }
+
+  .trend-count {
+    font-size: 12px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    min-width: 24px;
+    text-align: right;
+  }
+
+  .trend-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 6px;
+  }
+
+  /* Papers list */
+  .papers-list { padding: 0; }
+
+  .paper-item {
+    padding: 16px 20px;
+    border-bottom: 1px solid rgba(30,30,46,0.5);
+    transition: background 0.15s;
+    cursor: pointer;
+  }
+
+  .paper-item:hover { background: rgba(255,255,255,0.02); }
+  .paper-item:last-child { border-bottom: none; }
+
+  .paper-id {
+    font-size: 10px;
+    color: var(--accent2);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  .paper-title {
+    font-family: 'IBM Plex Sans', sans-serif;
+    font-size: 13px;
+    color: var(--text-bright);
+    font-weight: 400;
+    line-height: 1.4;
+    margin-bottom: 8px;
+  }
+
+  .paper-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .paper-authors {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-family: 'IBM Plex Sans', sans-serif;
+  }
+
+  .paper-date {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+
+  .paper-cats {
+    display: flex;
+    gap: 4px;
+  }
+
+  .cat-tag {
+    font-size: 9px;
+    background: rgba(0,136,255,0.1);
+    border: 1px solid rgba(0,136,255,0.2);
+    color: var(--accent2);
+    padding: 2px 6px;
+    border-radius: 2px;
+    letter-spacing: 0.5px;
+  }
+
+  /* Bottom grid */
+  .bottom-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+
+  /* Category breakdown */
+  .cat-breakdown { padding: 20px; }
+
+  .cat-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .cat-name {
+    font-size: 11px;
+    color: var(--text-dim);
+    width: 60px;
+    flex-shrink: 0;
+  }
+
+  .cat-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .cat-bar {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s cubic-bezier(0.4,0,0.2,1);
+  }
+
+  .cat-count {
+    font-size: 11px;
+    color: var(--text-dim);
+    min-width: 30px;
+    text-align: right;
+  }
+
+  /* Log */
+  .log-area {
+    padding: 16px 20px;
+    font-size: 11px;
+    line-height: 1.8;
+    max-height: 200px;
+    overflow-y: auto;
+  }
+
+  .log-line { color: var(--text-dim); }
+  .log-line .ts { color: var(--text-dim); opacity: 0.5; margin-right: 8px; }
+  .log-line .ok { color: var(--accent); }
+  .log-line .err { color: var(--accent3); }
+  .log-line .info { color: var(--accent2); }
+
+  /* Loading skeleton */
+  .skeleton {
+    background: linear-gradient(90deg, var(--border) 25%, rgba(40,40,60,0.5) 50%, var(--border) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 3px;
+    height: 14px;
+    margin-bottom: 8px;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* Error state */
+  .error-msg {
+    padding: 20px;
+    font-size: 12px;
+    color: var(--accent3);
+  }
+
+  .error-msg .hint {
+    color: var(--text-dim);
+    margin-top: 8px;
+    font-size: 11px;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Animate in */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .panel, .stat-card {
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .stat-card:nth-child(1) { animation-delay: 0.05s; }
+  .stat-card:nth-child(2) { animation-delay: 0.1s; }
+  .stat-card:nth-child(3) { animation-delay: 0.15s; }
+  .stat-card:nth-child(4) { animation-delay: 0.2s; }
+
+  /* Blink cursor */
+  .cursor {
+    display: inline-block;
+    width: 8px; height: 14px;
+    background: var(--accent);
+    animation: blink 1s step-end infinite;
+    vertical-align: middle;
+    margin-left: 2px;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo-area">
+      <div class="logo-tag">// arxiv intelligence</div>
+      <h1>research<span>_</span>trend<span>_</span>tracker</h1>
+      <div class="subtitle">Real-time arXiv paper ingestion & trend analytics</div>
+    </div>
+    <div class="status-bar">
+      <div class="status-item"><div class="dot" id="api-dot"></div><span id="api-status">connecting...</span></div>
+      <div class="status-item"><div class="dot blue"></div><span id="last-update">—</span></div>
+    </div>
+  </header>
+
+  <!-- Auth -->
+  <div class="auth-bar">
+    <span class="auth-label">Bearer</span>
+    <input class="auth-input" id="jwt-input" type="text" placeholder="paste JWT token (generate with: uv run python -c &quot;from app.core.security import create_access_token; print(create_access_token({'sub':'demo'}))&quot;)" />
+    <button class="btn" onclick="loadAll()">connect</button>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="stat-label">// papers ingested</div>
+      <div class="stat-value loading" id="stat-papers">—</div>
+      <div class="stat-sub" id="stat-papers-sub">awaiting connection</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">// trend keywords</div>
+      <div class="stat-value loading" id="stat-keywords">—</div>
+      <div class="stat-sub">cs.AI · cs.LG · cs.CL · stat.ML</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">// top trend today</div>
+      <div class="stat-value loading" id="stat-top-trend" style="font-size:20px">—</div>
+      <div class="stat-sub" id="stat-top-trend-sub">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">// api status</div>
+      <div class="stat-value loading" id="stat-health" style="font-size:20px">—</div>
+      <div class="stat-sub">GET /health</div>
+    </div>
+  </div>
+
+  <!-- Main grid -->
+  <div class="main-grid">
+    <!-- Trends panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span>▸</span>trending keywords</div>
+        <div style="font-size:10px;color:var(--text-dim)" id="trend-meta">—</div>
+      </div>
+      <div class="cat-selector">
+        <button class="cat-btn active" onclick="selectCat('cs.AI', this)">cs.AI</button>
+        <button class="cat-btn" onclick="selectCat('cs.LG', this)">cs.LG</button>
+        <button class="cat-btn" onclick="selectCat('cs.CL', this)">cs.CL</button>
+        <button class="cat-btn" onclick="selectCat('stat.ML', this)">stat.ML</button>
+      </div>
+      <div class="trend-list" id="trend-list">
+        <div style="padding:20px">
+          <div class="skeleton" style="width:80%"></div>
+          <div class="skeleton" style="width:60%"></div>
+          <div class="skeleton" style="width:70%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Papers panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span>▸</span>recent papers</div>
+        <button class="btn blue" onclick="loadPapers(currentCat)" style="font-size:10px;padding:4px 10px">refresh</button>
+      </div>
+      <div class="papers-list" id="papers-list">
+        <div style="padding:20px">
+          <div class="skeleton" style="width:40%"></div>
+          <div class="skeleton" style="width:90%"></div>
+          <div class="skeleton" style="width:60%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom grid -->
+  <div class="bottom-grid">
+    <!-- Category breakdown -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span>▸</span>category distribution</div>
+      </div>
+      <div class="cat-breakdown" id="cat-breakdown">
+        <div class="skeleton" style="width:100%"></div>
+        <div class="skeleton" style="width:80%"></div>
+      </div>
+    </div>
+
+    <!-- Activity log -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span>▸</span>activity log</div>
+      </div>
+      <div class="log-area" id="log-area">
+        <div class="log-line"><span class="ts">--:--:--</span>waiting for connection<span class="cursor"></span></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = 'http://localhost:8000';
+let currentCat = 'cs.AI';
+let authToken = '';
+let allPapers = [];
+
+function log(msg, type='') {
+  const area = document.getElementById('log-area');
+  const ts = new Date().toTimeString().slice(0,8);
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="ts">${ts}</span><span class="${type}">${msg}</span>`;
+  area.appendChild(line);
+  area.scrollTop = area.scrollHeight;
+}
+
+function setApiStatus(ok) {
+  const dot = document.getElementById('api-dot');
+  const status = document.getElementById('api-status');
+  if (ok) {
+    dot.classList.remove('red');
+    status.textContent = 'api online';
+    status.style.color = 'var(--accent)';
+  } else {
+    dot.classList.add('red');
+    status.textContent = 'api offline';
+    status.style.color = 'var(--accent3)';
+  }
+}
+
+async function apiFetch(path) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+  const res = await fetch(API + path, { headers });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+async function checkHealth() {
+  try {
+    const data = await fetch(API + '/health').then(r => r.json());
+    document.getElementById('stat-health').textContent = data.status === 'ok' ? 'ONLINE' : 'DEGRADED';
+    document.getElementById('stat-health').style.color = 'var(--accent)';
+    setApiStatus(true);
+    log('GET /health → 200 ok', 'ok');
+    return true;
+  } catch(e) {
+    document.getElementById('stat-health').textContent = 'OFFLINE';
+    document.getElementById('stat-health').style.color = 'var(--accent3)';
+    setApiStatus(false);
+    log('GET /health → failed — is the server running?', 'err');
+    return false;
+  }
+}
+
+async function loadTrends(cat) {
+  const list = document.getElementById('trend-list');
+  list.innerHTML = '<div style="padding:20px"><div class="skeleton" style="width:80%"></div><div class="skeleton" style="width:60%"></div></div>';
+  try {
+    const data = await apiFetch(`/api/v1/trends?category=${cat}&window_days=7&top_n=15`);
+    log(`GET /api/v1/trends?category=${cat} → ${data.length} keywords`, 'ok');
+
+    const max = data.length > 0 ? Math.max(...data.map(d => d.count)) : 1;
+
+    if (data.length === 0) {
+      list.innerHTML = '<div class="error-msg">No trend data yet.<div class="hint">Run ingestion first.</div></div>';
+      return;
+    }
+
+    document.getElementById('trend-meta').textContent = `${data.length} keywords · 7d window`;
+
+    // Update top trend stat
+    if (data[0]) {
+      document.getElementById('stat-top-trend').textContent = data[0].keyword;
+      document.getElementById('stat-top-trend').style.fontSize = '18px';
+      document.getElementById('stat-top-trend').style.color = 'var(--text-bright)';
+      document.getElementById('stat-top-trend-sub').textContent = `count: ${data[0].count} in ${cat}`;
+    }
+
+    list.innerHTML = data.map((item, i) => `
+      <div class="trend-item">
+        <div class="trend-rank">${String(i+1).padStart(2,'0')}</div>
+        <div>
+          <div class="trend-keyword">${item.keyword}</div>
+          <div class="trend-row">
+            <div class="trend-bar-wrap" style="flex:1">
+              <div class="trend-bar" style="width:${Math.round((item.count/max)*100)}%"></div>
+            </div>
+          </div>
+        </div>
+        <div class="trend-count">${item.count}</div>
+      </div>
+    `).join('');
+  } catch(e) {
+    list.innerHTML = `<div class="error-msg">${e.message}<div class="hint">Check JWT token above.</div></div>`;
+    log(`trends fetch failed: ${e.message}`, 'err');
+  }
+}
+
+async function loadPapers(cat) {
+  const list = document.getElementById('papers-list');
+  list.innerHTML = '<div style="padding:20px"><div class="skeleton" style="width:40%"></div><div class="skeleton" style="width:90%"></div><div class="skeleton" style="width:60%"></div></div>';
+  try {
+    const data = await apiFetch(`/api/v1/papers?category=${cat}&days_back=7&limit=10`);
+    allPapers = data;
+    log(`GET /api/v1/papers?category=${cat} → ${data.length} papers`, 'ok');
+
+    document.getElementById('stat-papers').textContent = data.length;
+    document.getElementById('stat-papers').style.color = 'var(--text-bright)';
+    document.getElementById('stat-papers-sub').textContent = `last 7 days · ${cat}`;
+
+    if (data.length === 0) {
+      list.innerHTML = '<div class="error-msg">No papers yet.<div class="hint">Run ingestion first.</div></div>';
+      return;
+    }
+
+    list.innerHTML = data.map(p => {
+      const authors = p.authors ? p.authors.slice(0,2).join(', ') + (p.authors.length > 2 ? ` +${p.authors.length-2}` : '') : '—';
+      const date = p.published_at ? new Date(p.published_at).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'}) : '—';
+      const cats = (p.categories || []).map(c => `<span class="cat-tag">${c}</span>`).join('');
+      return `
+        <div class="paper-item" onclick="window.open('https://arxiv.org/abs/${p.arxiv_id}','_blank')">
+          <div class="paper-id">[${p.arxiv_id}]</div>
+          <div class="paper-title">${p.title}</div>
+          <div class="paper-meta">
+            <span class="paper-authors">${authors}</span>
+            <div class="paper-cats">${cats}</div>
+            <span class="paper-date">${date}</span>
+          </div>
+        </div>`;
+    }).join('');
+  } catch(e) {
+    list.innerHTML = `<div class="error-msg">${e.message}<div class="hint">Check JWT token.</div></div>`;
+    log(`papers fetch failed: ${e.message}`, 'err');
+  }
+}
+
+async function loadCatBreakdown() {
+  const cats = ['cs.AI','cs.LG','cs.CL','stat.ML'];
+  const colors = ['#00ff88','#0088ff','#aa44ff','#ff4466'];
+  const counts = {};
+  let total = 0;
+
+  for (const cat of cats) {
+    try {
+      const data = await apiFetch(`/api/v1/papers?category=${cat}&days_back=7&limit=100`);
+      counts[cat] = data.length;
+      total += data.length;
+    } catch(e) {
+      counts[cat] = 0;
+    }
+  }
+
+  const max = Math.max(...Object.values(counts), 1);
+  document.getElementById('stat-keywords').textContent = total;
+  document.getElementById('stat-keywords').style.color = 'var(--text-bright)';
+
+  document.getElementById('cat-breakdown').innerHTML = cats.map((cat, i) => `
+    <div class="cat-row">
+      <div class="cat-name">${cat}</div>
+      <div class="cat-bar-wrap">
+        <div class="cat-bar" style="width:${Math.round((counts[cat]/max)*100)}%;background:${colors[i]}"></div>
+      </div>
+      <div class="cat-count">${counts[cat]}</div>
+    </div>
+  `).join('');
+
+  log(`category breakdown loaded`, 'info');
+}
+
+function selectCat(cat, btn) {
+  currentCat = cat;
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  loadTrends(cat);
+  loadPapers(cat);
+}
+
+async function loadAll() {
+  authToken = document.getElementById('jwt-input').value.trim();
+  document.getElementById('last-update').textContent = 'loading...';
+  log('--- connecting to API ---', 'info');
+
+  const ok = await checkHealth();
+  if (!ok) return;
+
+  await loadTrends(currentCat);
+  await loadPapers(currentCat);
+  await loadCatBreakdown();
+
+  document.getElementById('last-update').textContent = `updated ${new Date().toTimeString().slice(0,8)}`;
+  log('--- dashboard ready ---', 'ok');
+}
+
+// Try health check on load
+window.addEventListener('load', () => {
+  checkHealth();
+  log('dashboard initialized', 'info');
+  log('paste JWT token and click connect', '');
+});
+</script>
+</body>
+</html>

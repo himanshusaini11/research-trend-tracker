@@ -13,7 +13,7 @@ log = get_logger(__name__)
 
 _ATOM_NS = "http://www.w3.org/2005/Atom"
 _ARXIV_NS = "http://arxiv.org/schemas/atom"
-_BASE_URL = "http://export.arxiv.org/api/query"
+_BASE_URL = "https://export.arxiv.org/api/query"
 
 
 def _text(element: ET.Element, tag: str, ns: str = _ATOM_NS) -> str:

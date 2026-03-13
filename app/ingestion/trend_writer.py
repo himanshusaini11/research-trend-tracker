@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from collections import Counter
 from datetime import date, datetime, UTC
+from itertools import islice
+from typing import Iterator
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -8,6 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.models import KeywordCount, Paper
 from app.ingestion.schemas import ArxivPaper, KeywordExtractionResult
+
+
+_BATCH_SIZE = 2_000  # stays well under asyncpg's 32 767-parameter limit
+
+
+def _batched(lst: list, n: int) -> Iterator[list]:
+    it = iter(lst)
+    while chunk := list(islice(it, n)):
+        yield chunk
 
 
 class TrendWriter:
@@ -32,14 +44,16 @@ class TrendWriter:
             for p in papers
         ]
 
-        stmt = (
-            insert(Paper)
-            .values(rows)
-            .on_conflict_do_nothing(index_elements=["arxiv_id"])
-            .returning(Paper.id)
-        )
-        result = await self._session.execute(stmt)
-        new_count = len(result.fetchall())
+        new_count = 0
+        for batch in _batched(rows, _BATCH_SIZE):
+            stmt = (
+                insert(Paper)
+                .values(batch)
+                .on_conflict_do_nothing(index_elements=["arxiv_id"])
+                .returning(Paper.id)
+            )
+            result = await self._session.execute(stmt)
+            new_count += len(result.fetchall())
         skipped = len(papers) - new_count
         return new_count, skipped
 
@@ -47,8 +61,13 @@ class TrendWriter:
         self,
         results: list[KeywordExtractionResult],
         window_date: date,
+        papers: list[ArxivPaper] | None = None,
     ) -> int:
-        """Upsert keyword counts for the given window date. Returns rows written."""
+        """Upsert keyword counts for the given window date. Returns rows written.
+
+        If `papers` is provided, keywords are stored per the paper's actual
+        arXiv categories. Without it they fall back to the sentinel "all".
+        """
         if not results:
             return 0
 
@@ -56,26 +75,34 @@ class TrendWriter:
             window_date.year, window_date.month, window_date.day, tzinfo=UTC
         )
 
-        # Flatten: one row per (keyword, category) pair
-        # We derive category from the paper's categories via a separate lookup,
-        # but since KeywordExtractionResult doesn't carry categories we use
-        # a sentinel category "all" and let analytics split by category later.
-        rows = [
-            {"keyword": kw, "category": "all", "count": 1, "window_date": window_dt}
-            for result in results
-            for kw in result.keywords
-        ]
+        # Build arxiv_id → categories map from the papers list (if provided)
+        category_map: dict[str, list[str]] = {}
+        if papers:
+            for p in papers:
+                category_map[p.arxiv_id] = p.categories or ["all"]
 
-        if not rows:
+        # Aggregate counts — Counter avoids duplicate (keyword, category)
+        # rows in the same INSERT which would trigger CardinalityViolationError.
+        counter: Counter[tuple[str, str]] = Counter()
+        for result in results:
+            cats = category_map.get(result.arxiv_id, ["all"])
+            for cat in cats:
+                for kw in result.keywords:
+                    counter[(kw, cat)] += 1
+
+        if not counter:
             return 0
 
-        stmt = (
-            insert(KeywordCount)
-            .values(rows)
-            .on_conflict_do_update(
+        rows = [
+            {"keyword": kw, "category": cat, "count": cnt, "window_date": window_dt}
+            for (kw, cat), cnt in counter.items()
+        ]
+
+        for batch in _batched(rows, _BATCH_SIZE):
+            ins = insert(KeywordCount)
+            stmt = ins.values(batch).on_conflict_do_update(
                 index_elements=["keyword", "category", "window_date"],
-                set_={"count": KeywordCount.count + 1},
+                set_={"count": KeywordCount.count + ins.excluded.count},
             )
-        )
-        await self._session.execute(stmt)
+            await self._session.execute(stmt)
         return len(rows)

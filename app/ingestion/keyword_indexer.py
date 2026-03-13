@@ -33,5 +33,5 @@ class KeywordIndexer:
         return KeywordExtractionResult(
             arxiv_id=paper.arxiv_id,
             keywords=top,
-            extraction_method="tf_stopword",
+            extraction_method="tfidf_counter",
         )

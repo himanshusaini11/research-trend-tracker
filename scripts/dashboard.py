@@ -1,10 +1,34 @@
+import os
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
 import requests
-from datetime import datetime
+from dotenv import load_dotenv
+from jose import jwt
+
+# Load .env from project root (one level above scripts/)
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 API = "http://localhost:8000"
+
+
+@st.cache_resource
+def _auto_token() -> str:
+    """Generate a long-lived dashboard JWT from the shared secret in .env."""
+    secret = os.environ.get("JWT_SECRET", "")
+    algorithm = os.environ.get("JWT_ALGORITHM", "HS256")
+    expire_minutes = int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+    payload = {
+        "sub": "dashboard",
+        "exp": datetime.now(UTC) + timedelta(minutes=expire_minutes),
+    }
+    return jwt.encode(payload, secret, algorithm=algorithm)
+
+
+TOKEN = _auto_token()
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -26,6 +50,8 @@ html, body, [class*="css"] {
 
 /* Hide default streamlit chrome */
 #MainMenu, footer, header { visibility: hidden; }
+/* Keep sidebar collapse/expand arrow visible */
+[data-testid="collapsedControl"] { visibility: visible; }
 .block-container { padding-top: 1.5rem; padding-bottom: 1rem; }
 
 /* Metric cards */
@@ -165,11 +191,8 @@ hr { border-color: #1e1e2e !important; }
 """, unsafe_allow_html=True)
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
-def get_headers(token: str) -> dict:
-    h = {"Content-Type": "application/json"}
-    if token:
-        h["Authorization"] = f"Bearer {token}"
-    return h
+def _auth_headers() -> dict:
+    return {"Content-Type": "application/json", "Authorization": f"Bearer {TOKEN}"}
 
 @st.cache_data(ttl=60)
 def fetch_health() -> bool:
@@ -180,36 +203,36 @@ def fetch_health() -> bool:
         return False
 
 @st.cache_data(ttl=60)
-def fetch_trends(token: str, category: str, window_days: int, top_n: int = 20):
+def fetch_trends(category: str, window_days: int, top_n: int = 20):
     try:
         r = requests.get(
             f"{API}/api/v1/trends",
             params={"category": category, "window_days": window_days, "top_n": top_n},
-            headers=get_headers(token),
+            headers=_auth_headers(),
             timeout=10,
         )
         r.raise_for_status()
         return r.json()
     except requests.HTTPError as e:
-        st.error(f"API error {e.response.status_code} — check your JWT token")
+        st.error(f"API error {e.response.status_code}")
         return []
     except Exception as e:
         st.error(f"Cannot reach API: {e}")
         return []
 
 @st.cache_data(ttl=60)
-def fetch_papers(token: str, category: str, days_back: int, limit: int = 15):
+def fetch_papers(category: str, days_back: int, limit: int = 15):
     try:
         r = requests.get(
             f"{API}/api/v1/papers",
             params={"category": category, "days_back": days_back, "limit": limit},
-            headers=get_headers(token),
+            headers=_auth_headers(),
             timeout=10,
         )
         r.raise_for_status()
         return r.json()
     except requests.HTTPError as e:
-        st.error(f"API error {e.response.status_code} — check your JWT token")
+        st.error(f"API error {e.response.status_code}")
         return []
     except Exception as e:
         st.error(f"Cannot reach API: {e}")
@@ -224,11 +247,9 @@ def plotly_dark_layout():
 
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.markdown('<div class="section-header">◈ research_trend_tracker</div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-header">◈ Research Trend Tracker</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="section-header">// connection</div>', unsafe_allow_html=True)
-    token = st.text_input("JWT Token", type="password", placeholder="Bearer token...")
-
     health = fetch_health()
     if health:
         st.success("● API online", icon=None)
@@ -246,29 +267,23 @@ with st.sidebar:
         st.cache_data.clear()
 
     st.markdown("---")
-    st.markdown("""
-    <div style="font-size:10px;color:#555570;line-height:1.8">
-    Generate token:<br>
-    <span style="color:#00ff88">uv run python -c "<br>
-    from app.core.security<br>
-    import create_access_token;<br>
-    print(create_access_token(<br>
-    {'sub':'demo'}))\"</span>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown(
+        '<div style="font-size:10px;color:#555570">auth: auto (JWT_SECRET from .env)</div>',
+        unsafe_allow_html=True,
+    )
 
 # ── Header ─────────────────────────────────────────────────────────────────────
 st.markdown("""
 <div style="margin-bottom:24px">
   <div style="font-size:10px;color:#00ff88;letter-spacing:3px;text-transform:uppercase;margin-bottom:4px">// arxiv intelligence</div>
-  <div style="font-size:26px;font-weight:600;color:#eeeeff;letter-spacing:-0.5px">research<span style="color:#00ff88">_</span>trend<span style="color:#00ff88">_</span>tracker</div>
+  <div style="font-size:26px;font-weight:600;color:#eeeeff;letter-spacing:-0.5px">Research Trend Tracker</div>
   <div style="font-size:12px;color:#555570;margin-top:4px;font-family:'IBM Plex Sans',sans-serif">Real-time arXiv ingestion · Trend analytics · LLM summarization</div>
 </div>
 """, unsafe_allow_html=True)
 
 # ── Metrics ────────────────────────────────────────────────────────────────────
-trends_data = fetch_trends(token, category, window_days, top_n)
-papers_data = fetch_papers(token, category, window_days)
+trends_data = fetch_trends(category, window_days, top_n)
+papers_data = fetch_papers(category, window_days)
 
 top_keyword = trends_data[0]["keyword"] if trends_data else "—"
 top_count = trends_data[0]["count"] if trends_data else 0
@@ -317,7 +332,7 @@ with left:
         )
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
     else:
-        st.info("No trend data — run ingestion first or check JWT token")
+        st.info("No trend data — run ingestion first")
 
 # Papers
 with right:
@@ -356,7 +371,7 @@ with right:
                 </div>
                 """, unsafe_allow_html=True)
     else:
-        st.info("No papers yet — run ingestion first or check JWT token")
+        st.info("No papers yet — run ingestion first")
 
 st.markdown("---")
 
@@ -367,22 +382,22 @@ cats = ["cs.AI", "cs.LG", "cs.CL", "stat.ML"]
 colors = ["#00ff88", "#0088ff", "#aa44ff", "#ff4466"]
 
 @st.cache_data(ttl=60)
-def fetch_all_cats(token, window_days):
+def fetch_all_cats(window_days):
     counts = {}
     for cat in cats:
         try:
             r = requests.get(
-                f"{API}/api/v1/papers",
-                params={"category": cat, "days_back": window_days, "limit": 100},
-                headers=get_headers(token),
+                f"{API}/api/v1/papers/count",
+                params={"category": cat, "days_back": window_days},
+                headers=_auth_headers(),
                 timeout=10,
             )
-            counts[cat] = len(r.json()) if r.status_code == 200 else 0
+            counts[cat] = r.json().get("count", 0) if r.status_code == 200 else 0
         except Exception:
             counts[cat] = 0
     return counts
 
-cat_counts = fetch_all_cats(token, window_days)
+cat_counts = fetch_all_cats(window_days)
 
 fig2 = go.Figure()
 for cat, color in zip(cats, colors):

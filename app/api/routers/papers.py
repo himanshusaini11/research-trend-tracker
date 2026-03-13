@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import any_, select
+from sqlalchemy import any_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, get_rate_limiter
@@ -51,6 +51,30 @@ async def list_papers(
     )
     rows = (await db.execute(stmt)).scalars().all()
     return [_paper_dict(p) for p in rows]
+
+
+@router.get("/count")
+async def count_papers(
+    category: str,
+    days_back: Annotated[int, Query(ge=1, le=90)] = 7,
+    db: AsyncSession = Depends(get_db),
+    _user: dict[str, Any] = Depends(get_current_user),
+    rate_limiter: RateLimiter = Depends(get_rate_limiter),
+) -> dict[str, int]:
+    if not await rate_limiter.is_allowed(_user.get("sub", "anonymous")):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
+
+    since = datetime.now(UTC) - timedelta(days=days_back)
+    stmt = (
+        select(func.count())
+        .select_from(Paper)
+        .where(
+            category == any_(Paper.categories),
+            Paper.published_at >= since,
+        )
+    )
+    count = (await db.execute(stmt)).scalar_one()
+    return {"count": count}
 
 
 @router.get("/{arxiv_id}")

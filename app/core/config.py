@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     # App
     # -------------------------------------------------------------------------
     app_env: Literal["development", "staging", "production"] = "development"
-    app_name: str = "research-trend-tracker"
+    app_name: str = "Research Trend Tracker"
     debug: bool = False
 
     # -------------------------------------------------------------------------
