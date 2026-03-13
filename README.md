@@ -84,6 +84,7 @@ research-trend-tracker/
 |---|---|---|---|---|
 | `GET` | `/health` | None | No | Service health check |
 | `GET` | `/api/v1/papers` | JWT / API Key | Yes | List papers by category and date range |
+| `GET` | `/api/v1/papers/count` | JWT / API Key | Yes | Count papers by category and date range (no pagination cap) |
 | `GET` | `/api/v1/papers/{arxiv_id}` | JWT / API Key | No | Get single paper by arXiv ID |
 | `GET` | `/api/v1/trends` | JWT / API Key | Yes | Get trending keywords for a category |
 | `GET` | `/api/v1/trends/summary` | JWT / API Key | Yes | Get pre-computed trend scores from trend_scores table |
@@ -163,14 +164,36 @@ Open `.env` and set the two required values:
 
 ```env
 POSTGRES_PASSWORD=your-password
-JWT_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+JWT_SECRET=$(uv run python -c "import secrets; print(secrets.token_hex(32))")
 ```
 
-### 3. Start services
+All variables and their defaults:
+
+| Variable | Default | Required | Description |
+|---|---|---|---|
+| `POSTGRES_PASSWORD` | `changeme` | **Yes** | PostgreSQL password |
+| `JWT_SECRET` | `change-this-to-a-long-random-secret` | **Yes** | HMAC secret for JWT signing |
+| `POSTGRES_HOST` | `localhost` | No | Postgres host |
+| `POSTGRES_PORT` | `5432` | No | Postgres port |
+| `POSTGRES_USER` | `rtt` | No | Postgres user |
+| `POSTGRES_DB` | `rtt` | No | Postgres database name |
+| `REDIS_HOST` | `localhost` | No | Redis host |
+| `REDIS_PORT` | `6379` | No | Redis port |
+| `JWT_ALGORITHM` | `HS256` | No | JWT signing algorithm |
+| `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | `60` | No | Token lifetime (also used by dashboard) |
+| `OLLAMA_URL` | `http://localhost:11434` | No | Ollama API base URL |
+| `OLLAMA_MODEL` | `llama3.2` | No | Model name for LLM summarization |
+| `ARXIV_CATEGORIES` | `["cs.AI","cs.LG","cs.CL","stat.ML"]` | No | JSON array of arXiv categories to track |
+| `ARXIV_MAX_RESULTS_PER_FETCH` | `500` | No | Max papers fetched per category per run |
+| `RATE_LIMIT_REQUESTS` | `60` | No | Token bucket refill rate (requests/window) |
+| `RATE_LIMIT_WINDOW_SECONDS` | `60` | No | Token bucket window length |
+| `RATE_LIMIT_BURST` | `10` | No | Max burst above rate limit |
+
+### 3. Start infrastructure services
 
 ```bash
-# Start Postgres, Redis, Ollama
-docker compose up -d
+# Start Postgres, Redis, and Ollama only (app and observability run locally)
+docker compose up -d postgres redis ollama
 
 # Wait for Ollama to be ready, then pull the model (~2GB)
 docker exec research-trend-tracker-ollama-1 ollama pull llama3.2
@@ -220,13 +243,11 @@ asyncio.run(run())
 ### 7. Launch the dashboard
 
 ```bash
-# Generate a JWT token
-uv run python -c "from app.core.security import create_access_token; print(create_access_token({'sub':'demo'}))"
-
-# Start Streamlit
 uv run streamlit run scripts/dashboard.py
 # Dashboard at http://localhost:8501
 ```
+
+The dashboard reads `JWT_SECRET` from `.env` and generates its token automatically — no manual token entry required.
 
 ### 8. Start Airflow (optional)
 
@@ -309,6 +330,16 @@ app/
     ├── server.py        # FastMCP instance
     └── tools.py         # 3 registered tool functions
 ```
+
+---
+
+## Known Limitations
+
+- **BERTopic clustering**: `app/analytics/topic_clusterer.py` uses prefix-based heuristic grouping. Full BERTopic semantic clustering is planned for v2 but requires GPU resources not available in the current Docker Compose stack.
+- **MCP server untested end-to-end**: `app/mcp_server/` is implemented and importable, but the FastMCP integration has not been exercised against a live AI agent. Tool signatures match the analytics API but may need adjustments for specific agent frameworks.
+- **Airflow DAG stores keywords under `"all"`**: The `write_to_db` task in `arxiv_ingestion_dag.py` calls `write_keywords` without passing the `papers` list, so keywords ingested via the scheduled DAG are stored under the sentinel category `"all"` rather than per-arXiv-category. Per-category keyword trends are fully accurate when using the manual ingestion script (Step 6). A fix is tracked for the next DAG update.
+- **Dashboard not containerized**: The Streamlit dashboard runs locally via `uv run streamlit`. It is not part of the `docker-compose.yml` stack.
+- **Prometheus/Grafana not pre-configured**: Both containers start via `docker compose up` but no scrape configs or dashboards are bundled. Manual configuration is required.
 
 ---
 
