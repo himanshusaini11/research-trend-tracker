@@ -1,6 +1,8 @@
 services:
   postgres:
-    image: timescale/timescaledb:latest-pg16
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.postgres
     environment:
       POSTGRES_USER: rtt
       POSTGRES_PASSWORD: changeme

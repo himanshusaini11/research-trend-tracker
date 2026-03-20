@@ -226,6 +226,86 @@ def fetch_semantic_scholar(**context) -> None:  # type: ignore[type-arg]
 
 
 # ---------------------------------------------------------------------------
+# Task 5 — build knowledge graph (entity extraction + AGE relation builder)
+# ---------------------------------------------------------------------------
+def build_knowledge_graph(**context) -> None:  # type: ignore[type-arg]
+    from sqlalchemy import text
+
+    from app.core.config import settings
+    from app.core.database import AsyncSessionLocal
+    from app.graph.entity_extractor import EntityExtractor
+    from app.graph.relation_builder import RelationBuilder
+
+    paper_dicts = context["ti"].xcom_pull(key="papers", task_ids="fetch_papers") or []
+
+    extractor = EntityExtractor(
+        ollama_url=settings.ollama_url,
+        model=settings.ollama_model,
+        timeout=settings.ollama_request_timeout_seconds,
+    )
+
+    async def _run() -> tuple[int, int, int]:
+        papers_processed = 0
+        total_concepts = 0
+        total_edges = 0
+
+        async with AsyncSessionLocal() as session:
+            builder = RelationBuilder(session)
+            await builder.setup()
+
+            for paper in paper_dicts:
+                arxiv_id: str = paper["arxiv_id"]
+                title: str = paper.get("title", "")
+                abstract: str = paper.get("abstract", "")
+                year: int | None = None
+                published_at = paper.get("published_at")
+                if published_at:
+                    try:
+                        year = int(str(published_at)[:4])
+                    except (ValueError, TypeError):
+                        year = None
+
+                # Load authors for this paper from DB
+                rows = (
+                    await session.execute(
+                        text(
+                            "SELECT author_id, author_name FROM paper_authors"
+                            " WHERE paper_id = :arxiv_id"
+                        ).bindparams(arxiv_id=arxiv_id)
+                    )
+                ).all()
+                authors: list[tuple[str, str]] = [(r[0], r[1]) for r in rows]
+
+                # Extract entities via Ollama
+                result = await extractor.extract(arxiv_id, title, abstract)
+
+                # Write nodes + edges to AGE
+                concepts_created, edges_created = await builder.build_for_paper(
+                    arxiv_id=arxiv_id,
+                    title=title,
+                    year=year,
+                    authors=authors,
+                    result=result,
+                )
+
+                papers_processed += 1
+                total_concepts += concepts_created
+                total_edges += edges_created
+
+            await session.commit()
+
+        return papers_processed, total_concepts, total_edges
+
+    papers_processed, total_concepts, total_edges = asyncio.run(_run())
+    log.info(
+        "build_knowledge_graph_complete",
+        papers_processed=papers_processed,
+        concepts_created=total_concepts,
+        edges_created=total_edges,
+    )
+
+
+# ---------------------------------------------------------------------------
 # DAG definition
 # ---------------------------------------------------------------------------
 with DAG(
@@ -243,5 +323,8 @@ with DAG(
     t_semantic = PythonOperator(
         task_id="fetch_semantic_scholar", python_callable=fetch_semantic_scholar
     )
+    t_graph = PythonOperator(
+        task_id="build_knowledge_graph", python_callable=build_knowledge_graph
+    )
 
-    t_fetch >> t_index >> t_write >> t_semantic
+    t_fetch >> t_index >> t_write >> t_semantic >> t_graph

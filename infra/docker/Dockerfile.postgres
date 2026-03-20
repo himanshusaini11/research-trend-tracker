@@ -1,0 +1,26 @@
+# Custom Postgres 16 + TimescaleDB + Apache AGE image.
+# AGE must be compiled from source on top of the TimescaleDB image.
+# Base image is Alpine Linux — use apk, not apt-get.
+FROM timescale/timescaledb:latest-pg16
+
+# Install build-time deps (virtual group so they can be removed in one RUN)
+RUN apk add --no-cache --virtual .build-deps \
+        build-base \
+        git \
+        bison \
+        flex \
+        readline-dev \
+        zlib-dev \
+        clang \
+        llvm
+
+# Clone Apache AGE for PG16 and compile
+RUN git clone --branch PG16/v1.6.0-rc0 --depth 1 \
+        https://github.com/apache/age.git /tmp/age \
+ && cd /tmp/age \
+ && make install \
+ && cd / \
+ && rm -rf /tmp/age
+
+# Remove build deps to keep the final image lean
+RUN apk del .build-deps
