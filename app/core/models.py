@@ -105,6 +105,43 @@ class PaperCitation(Base):
     )
 
 
+VelocityTrend = Literal["accelerating", "decelerating", "stable"]
+
+
+class BridgeNodeScore(Base):
+    """Betweenness-centrality scores for Concept nodes in the AGE graph."""
+
+    __tablename__ = "bridge_node_scores"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    concept_name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    centrality_score: Mapped[float] = mapped_column(Float, nullable=False)
+    graph_node_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    graph_edge_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (Index("ix_bridge_node_scores_concept_name", "concept_name"),)
+
+
+class VelocityScore(Base):
+    """Citation-rate acceleration for concepts, derived from keyword_counts time series."""
+
+    __tablename__ = "velocity_scores"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    concept_name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    velocity: Mapped[float] = mapped_column(Float, nullable=False)
+    acceleration: Mapped[float] = mapped_column(Float, nullable=False)
+    trend: Mapped[VelocityTrend] = mapped_column(
+        Enum("accelerating", "decelerating", "stable", name="velocity_trend_enum"),
+        nullable=False,
+    )
+    weeks_of_data: Mapped[int] = mapped_column(Integer, nullable=False)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (Index("ix_velocity_scores_concept_name", "concept_name"),)
+
+
 class PaperAuthor(Base):
     """Author records fetched from Semantic Scholar, linked by arXiv ID."""
 

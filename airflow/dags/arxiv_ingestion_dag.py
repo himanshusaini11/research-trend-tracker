@@ -306,6 +306,36 @@ def build_knowledge_graph(**context) -> None:  # type: ignore[type-arg]
 
 
 # ---------------------------------------------------------------------------
+# Task 6 — analyze graph (bridge nodes + velocity)
+# ---------------------------------------------------------------------------
+def analyze_graph(**context) -> None:  # type: ignore[type-arg]
+    from app.core.config import settings
+    from app.core.database import AsyncSessionLocal
+    from app.graph.graph_analyzer import GraphAnalyzer
+
+    async def _run() -> None:
+        analyzer = GraphAnalyzer(
+            top_n=settings.graph_top_n_concepts,
+            k_samples=settings.graph_centrality_k_samples,
+        )
+        async with AsyncSessionLocal() as session:
+            signals = await analyzer.analyze(session)
+            await session.commit()
+
+        top5 = signals[:5]
+        log.info(
+            "analyze_graph_complete",
+            total_concepts=len(signals),
+            top_concepts=[
+                {"name": s.concept_name, "composite_score": round(s.composite_score, 4)}
+                for s in top5
+            ],
+        )
+
+    asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
 # DAG definition
 # ---------------------------------------------------------------------------
 with DAG(
@@ -326,5 +356,8 @@ with DAG(
     t_graph = PythonOperator(
         task_id="build_knowledge_graph", python_callable=build_knowledge_graph
     )
+    t_analyze = PythonOperator(
+        task_id="analyze_graph", python_callable=analyze_graph
+    )
 
-    t_fetch >> t_index >> t_write >> t_semantic >> t_graph
+    t_fetch >> t_index >> t_write >> t_semantic >> t_graph >> t_analyze

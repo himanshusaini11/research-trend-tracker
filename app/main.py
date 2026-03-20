@@ -8,7 +8,7 @@ from app.core.cache import close_redis
 from app.core.config import settings
 from app.core.logger import get_logger, setup_logging
 from app.core.metrics import setup_metrics
-from app.api.routers import health, papers, trends, summarize
+from app.api.routers import graph, health, papers, summarize, trends
 
 setup_logging()
 log = get_logger(__name__)
@@ -55,3 +55,4 @@ app.include_router(health.router, prefix="/health")
 app.include_router(papers.router, prefix="/api/v1/papers")
 app.include_router(trends.router, prefix="/api/v1/trends")
 app.include_router(summarize.router, prefix="/api/v1/summarize")
+app.include_router(graph.router, prefix="/graph")

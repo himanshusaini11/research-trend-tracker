@@ -11,6 +11,7 @@ dependencies = [
     "httpx>=0.28.1",
     "langchain>=1.2.12",
     "langchain-ollama>=1.0.1",
+    "networkx>=3.6.1",
     "pandas>=2.3.3",
     "passlib[bcrypt]>=1.7.4",
     "plotly>=6.6.0",

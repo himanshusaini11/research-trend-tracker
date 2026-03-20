@@ -95,6 +95,12 @@ class Settings(BaseSettings):
     semantic_scholar_fetch_delay_seconds: float = 3.0  # ~100 req/5 min = 1 req/3s
 
     # -------------------------------------------------------------------------
+    # Graph analysis
+    # -------------------------------------------------------------------------
+    graph_top_n_concepts: int = 20
+    graph_centrality_k_samples: int = 100
+
+    # -------------------------------------------------------------------------
     # Rate limiting (Token Bucket via Redis)
     # -------------------------------------------------------------------------
     rate_limit_requests: int = 60       # tokens per window
