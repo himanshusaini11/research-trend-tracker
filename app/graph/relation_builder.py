@@ -152,9 +152,15 @@ class RelationBuilder:
         return concepts_created, edges_created
 
     async def _cypher(self, query: str, return_col: str) -> None:
-        """Execute a single cypher statement via AGE's SQL wrapper."""
+        """Execute a single cypher statement via AGE's SQL wrapper.
+
+        Uses exec_driver_sql instead of text() so SQLAlchemy does not
+        interpret AGE relationship-type labels (e.g. :MENTIONS) as bind
+        parameters.
+        """
         sql = (
             f"SELECT * FROM cypher('{_GRAPH}', $$ {query} $$)"
             f" AS ({return_col} agtype);"
         )
-        await self._session.execute(text(sql))
+        conn = await self._session.connection()
+        await conn.exec_driver_sql(sql)

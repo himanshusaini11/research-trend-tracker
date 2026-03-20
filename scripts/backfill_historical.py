@@ -93,10 +93,13 @@ async def _run(
     start_date: datetime,
     end_date: datetime,
     categories: list[str],
+    no_semantic: bool = False,
 ) -> None:
     print(f"\n{'='*60}")
     print(f"Backfill: {start_date.date()} → {end_date.date()}")
     print(f"Categories: {', '.join(categories)}")
+    if no_semantic:
+        print("Semantic Scholar: skipped (--no-semantic)")
     print(f"{'='*60}\n")
 
     # ── Step 1: Fetch papers from arXiv ───────────────────────────────────
@@ -129,6 +132,11 @@ async def _run(
     print(f"      → {new_papers} new papers, {skipped} skipped, {kw_count} keyword rows\n")
 
     # ── Step 3: Semantic Scholar citations ────────────────────────────────
+    if no_semantic:
+        print("[3/3] Semantic Scholar — skipped.\n")
+        print("Done.")
+        return
+
     print("[3/3] Fetching Semantic Scholar citations…")
     arxiv_ids = [p.arxiv_id for p in papers]
     papers_found = 0
@@ -208,6 +216,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--start-date", default="2024-10-01", help="Start date YYYY-MM-DD")
     parser.add_argument("--end-date", default="2024-12-31", help="End date YYYY-MM-DD")
     parser.add_argument("--categories", default="cs.CL,cs.AI", help="Comma-separated arXiv categories")
+    parser.add_argument("--no-semantic", action="store_true", default=False,
+                        help="Skip Semantic Scholar citation enrichment")
     return parser.parse_args()
 
 
@@ -218,4 +228,4 @@ if __name__ == "__main__":
     end = datetime.strptime(args.end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=UTC)
     cats = [c.strip() for c in args.categories.split(",")]
 
-    asyncio.run(_run(start, end, cats))
+    asyncio.run(_run(start, end, cats, no_semantic=args.no_semantic))
