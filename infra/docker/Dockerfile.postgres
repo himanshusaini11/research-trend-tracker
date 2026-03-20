@@ -9,6 +9,7 @@ RUN apk add --no-cache --virtual .build-deps \
         git \
         bison \
         flex \
+        perl \
         readline-dev \
         zlib-dev \
         clang \
