@@ -1,13 +1,16 @@
 import os
+import tempfile
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 import plotly.graph_objects as go
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 from jose import jwt
+from pyvis.network import Network  # type: ignore[import-untyped]
 
 # Load .env from project root (one level above scripts/)
 load_dotenv(Path(__file__).parent.parent / ".env")
@@ -206,7 +209,7 @@ def fetch_health() -> bool:
     try:
         r = requests.get(f"{API}/health", timeout=3)
         return r.status_code == 200
-    except:
+    except Exception:
         return False
 
 @st.cache_data(ttl=60)
@@ -358,7 +361,7 @@ with right:
                         date_str = datetime.fromisoformat(
                             p["published_at"].replace("Z","")
                         ).strftime("%b %d, %Y")
-                    except:
+                    except Exception:
                         date_str = p["published_at"][:10]
                 cats_html = "".join(
                     f'<span class="cat-pill">{c}</span>'
@@ -387,6 +390,64 @@ st.markdown('<div class="section-header">▸ category comparison</div>', unsafe_
 
 cats = ["cs.AI", "cs.LG", "cs.CL", "stat.ML"]
 colors = ["#00ff88", "#0088ff", "#aa44ff", "#ff4466"]
+
+def fetch_top_concepts(top_n: int = 20) -> list[dict]:
+    try:
+        r = requests.get(
+            f"{API}/graph/top-concepts",
+            params={"top_n": top_n},
+            headers=_auth_headers(),
+            timeout=10,
+        )
+        r.raise_for_status()
+        return r.json()
+    except requests.HTTPError as e:
+        st.error(f"API error {e.response.status_code}")
+        return []
+    except Exception as e:
+        st.error(f"Cannot reach API: {e}")
+        return []
+
+
+def fetch_predictions_latest(topic_context: str = "AI/ML research", limit: int = 5) -> list[dict]:
+    try:
+        r = requests.get(
+            f"{API}/graph/predictions/latest",
+            params={"topic_context": topic_context, "limit": limit},
+            headers=_auth_headers(),
+            timeout=10,
+        )
+        r.raise_for_status()
+        return r.json()
+    except requests.HTTPError as e:
+        st.error(f"API error {e.response.status_code}")
+        return []
+    except Exception as e:
+        st.error(f"Cannot reach API: {e}")
+        return []
+
+
+def post_generate_prediction(topic_context: str = "AI/ML research") -> dict | None:
+    try:
+        r = requests.post(
+            f"{API}/graph/predictions/generate",
+            json={"topic_context": topic_context},
+            headers=_auth_headers(),
+            timeout=180,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        st.error(f"Generate failed: {e}")
+        return None
+
+
+_TREND_COLORS = {
+    "accelerating": "#00d4aa",
+    "decelerating": "#ff6b6b",
+    "stable": "#4a9eff",
+}
+
 
 @st.cache_data(ttl=60)
 def fetch_all_cats(window_days):
@@ -427,6 +488,202 @@ fig2.update_layout(
     margin=dict(l=0, r=20, t=10, b=0),
 )
 st.plotly_chart(fig2, use_container_width=True, config={"displayModeBar": False})
+
+# ── Knowledge Graph / Prediction / Velocity tabs ───────────────────────────────
+st.markdown("---")
+tab_graph, tab_pred, tab_vel = st.tabs(["◈ Knowledge Graph", "◈ Prediction Report", "◈ Velocity Chart"])
+
+# ── Tab 1: Knowledge Graph ──────────────────────────────────────────────────────
+with tab_graph:
+    st.markdown('<div class="section-header">▸ concept knowledge graph</div>', unsafe_allow_html=True)
+
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([2, 2, 1])
+    with col_ctrl1:
+        graph_top_n = st.slider("Top N concepts", min_value=5, max_value=50, value=20, key="graph_top_n")
+    with col_ctrl2:
+        trend_options = ["All", "Accelerating", "Decelerating", "Stable"]
+        graph_trend_filter = st.selectbox("Filter by trend", trend_options, key="graph_trend_filter")
+    with col_ctrl3:
+        st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+        refresh_graph = st.button("⟳ Refresh graph", key="refresh_graph")
+
+    if refresh_graph:
+        st.cache_data.clear()
+
+    concepts = fetch_top_concepts(top_n=graph_top_n)
+
+    if graph_trend_filter != "All":
+        concepts = [c for c in concepts if c.get("trend", "").lower() == graph_trend_filter.lower()]
+
+    if concepts:
+        net = Network(height="600px", width="100%", bgcolor="#1a1a2e", font_color="white", directed=True)
+        net.barnes_hut()
+
+        for c in concepts:
+            trend = c.get("trend", "stable")
+            color = _TREND_COLORS.get(trend, "#4a9eff")
+            size = c.get("composite_score", 0.1) * 50 + 10
+            net.add_node(
+                c["concept_name"],
+                label=c["concept_name"],
+                color=color,
+                size=size,
+                title=(
+                    f"centrality: {c.get('centrality_score', 0):.3f}<br>"
+                    f"velocity: {c.get('velocity', 0):.1f}<br>"
+                    f"trend: {trend}<br>"
+                    f"composite: {c.get('composite_score', 0):.3f}"
+                ),
+            )
+
+        # Add edges between concepts that share similar trends (simple heuristic)
+        accel = [c["concept_name"] for c in concepts if c.get("trend") == "accelerating"]
+        for i in range(len(accel) - 1):
+            net.add_edge(accel[i], accel[i + 1], weight=1)
+
+        with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as tmp_f:
+            tmp_path = tmp_f.name
+        net.save_graph(tmp_path)
+        with open(tmp_path) as html_f:
+            html = html_f.read()
+        os.unlink(tmp_path)
+        components.html(html, height=620, scrolling=False)
+
+        # Legend
+        leg_cols = st.columns(3)
+        for col, (label, color) in zip(
+            leg_cols,
+            [("Accelerating", "#00d4aa"), ("Decelerating", "#ff6b6b"), ("Stable", "#4a9eff")],
+        ):
+            col.markdown(
+                f'<div style="font-size:11px;color:{color};letter-spacing:1px">● {label}</div>',
+                unsafe_allow_html=True,
+            )
+    else:
+        st.info("No concept data — run analyze_graph DAG task first")
+
+# ── Tab 2: Prediction Report ────────────────────────────────────────────────────
+with tab_pred:
+    st.markdown('<div class="section-header">▸ prediction report viewer</div>', unsafe_allow_html=True)
+
+    topic_context = st.selectbox(
+        "Topic context",
+        ["AI/ML research", "NLP research", "Computer Vision", "Reinforcement Learning"],
+        key="pred_topic_context",
+    )
+
+    reports = fetch_predictions_latest(topic_context=topic_context, limit=5)
+
+    if st.button("⟳ Generate New Report", key="gen_report"):
+        with st.spinner("Generating prediction report (this may take a minute)…"):
+            result = post_generate_prediction(topic_context=topic_context)
+        if result:
+            st.success("Report generated.")
+            reports = [result] + reports
+
+    if reports:
+        latest = reports[0]
+        report = latest.get("report", {})
+
+        st.metric("Overall Confidence", report.get("overall_confidence", "—").upper())
+
+        dir_col, gap_col, conv_col = st.columns(3)
+
+        with dir_col:
+            st.markdown('<div class="section-header">Emerging Directions</div>', unsafe_allow_html=True)
+            for item in report.get("emerging_directions", []):
+                with st.expander(item.get("direction", "—")):
+                    st.markdown(f"**Confidence:** {item.get('confidence', '—')}")
+                    st.markdown(item.get("reasoning", ""))
+
+        with gap_col:
+            st.markdown('<div class="section-header">Unexplored Gaps</div>', unsafe_allow_html=True)
+            for item in report.get("underexplored_gaps", []):
+                with st.expander(item.get("gap", "—")):
+                    st.markdown(item.get("reasoning", ""))
+
+        with conv_col:
+            st.markdown('<div class="section-header">Predicted Convergences</div>', unsafe_allow_html=True)
+            for item in report.get("predicted_convergences", []):
+                label = f"{item.get('concept_a', '?')} ↔ {item.get('concept_b', '?')}"
+                with st.expander(label):
+                    st.markdown(item.get("reasoning", ""))
+
+        generated_at = latest.get("generated_at", "")
+        model_name = latest.get("model_name", "")
+        st.caption(f"Generated at {generated_at} by {model_name}")
+
+        if len(reports) > 1:
+            st.markdown('<div class="section-header">▸ report archive</div>', unsafe_allow_html=True)
+            archive_rows = [
+                {
+                    "generated_at": r.get("generated_at", ""),
+                    "confidence": r.get("report", {}).get("overall_confidence", "—"),
+                    "model": r.get("model_name", ""),
+                }
+                for r in reports[:5]
+            ]
+            st.dataframe(pd.DataFrame(archive_rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("No prediction reports yet — generate one above or run the generate_predictions DAG task")
+
+# ── Tab 3: Velocity Chart ───────────────────────────────────────────────────────
+with tab_vel:
+    st.markdown('<div class="section-header">▸ concept velocity</div>', unsafe_allow_html=True)
+
+    vel_top_n = st.slider("Top N concepts", min_value=5, max_value=50, value=20, key="vel_top_n")
+    vel_data = fetch_top_concepts(top_n=vel_top_n)
+
+    if vel_data:
+        concept_names = [c["concept_name"] for c in vel_data]
+        velocities = [c["velocity"] for c in vel_data]
+        composites = [c["composite_score"] for c in vel_data]
+        trend_colors = [_TREND_COLORS.get(c.get("trend", "stable"), "#4a9eff") for c in vel_data]
+
+        fig_vel = go.Figure(
+            go.Bar(
+                x=concept_names,
+                y=velocities,
+                marker_color=trend_colors,
+                text=[f"{v:.1f}" for v in velocities],
+                textposition="outside",
+                textfont=dict(size=10, color="#c8c8d8"),
+            )
+        )
+        fig_vel.update_layout(
+            **plotly_dark_layout(),
+            title=dict(text="Velocity by Concept", font=dict(size=13, color="#c8c8d8")),
+            height=350,
+            xaxis=dict(tickangle=-40, tickfont=dict(size=10)),
+            yaxis=dict(title="velocity", gridcolor="#1e1e2e"),
+            bargap=0.25,
+        )
+        st.plotly_chart(fig_vel, use_container_width=True, config={"displayModeBar": False})
+
+        fig_comp = go.Figure(
+            go.Bar(
+                x=composites,
+                y=concept_names,
+                orientation="h",
+                marker_color=trend_colors,
+                text=[f"{s:.3f}" for s in composites],
+                textposition="outside",
+                textfont=dict(size=10, color="#c8c8d8"),
+            )
+        )
+        fig_comp.update_layout(
+            **plotly_dark_layout(),
+            title=dict(text="Composite Score by Concept", font=dict(size=13, color="#c8c8d8")),
+            height=max(300, len(vel_data) * 22),
+            xaxis=dict(title="composite score", gridcolor="#1e1e2e"),
+            bargap=0.25,
+        )
+        st.plotly_chart(fig_comp, use_container_width=True, config={"displayModeBar": False})
+
+        st.markdown('<div class="section-header">▸ full concept table</div>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame(vel_data), use_container_width=True, hide_index=True)
+    else:
+        st.info("No concept data — run analyze_graph DAG task first")
 
 # ── Footer ─────────────────────────────────────────────────────────────────────
 st.markdown(f"""
