@@ -1,9 +1,11 @@
 """Pydantic schemas for graph entity extraction and relation building."""
 from __future__ import annotations
 
-from typing import Literal
+import uuid
+from datetime import datetime
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class EntityExtractionResult(BaseModel):
@@ -43,3 +45,41 @@ class ConceptSignal(BaseModel):
     acceleration: float
     trend: str
     composite_score: float
+
+
+# ---------------------------------------------------------------------------
+# Prediction report schemas
+# ---------------------------------------------------------------------------
+
+class EmergingDirection(BaseModel):
+    direction: str
+    reasoning: str
+    confidence: Literal["high", "medium", "low"]
+
+
+class UnexploredGap(BaseModel):
+    gap: str
+    reasoning: str
+
+
+class PredictedConvergence(BaseModel):
+    concept_a: str
+    concept_b: str
+    reasoning: str
+
+
+class PredictionReport(BaseModel):
+    emerging_directions: Annotated[list[EmergingDirection], Field(min_length=3, max_length=3)]
+    underexplored_gaps: Annotated[list[UnexploredGap], Field(min_length=3, max_length=3)]
+    predicted_convergences: Annotated[list[PredictedConvergence], Field(min_length=2, max_length=2)]
+    time_horizon_months: int
+    overall_confidence: Literal["high", "medium", "low"]
+
+
+class ArchivedReport(BaseModel):
+    id: uuid.UUID
+    topic_context: str
+    report: dict[str, Any]
+    model_name: str
+    generated_at: datetime
+    is_validated: bool

@@ -336,6 +336,53 @@ def analyze_graph(**context) -> None:  # type: ignore[type-arg]
 
 
 # ---------------------------------------------------------------------------
+# Task 7 — generate predictions (PredictionSynthesizer + ReportArchive)
+# ---------------------------------------------------------------------------
+def generate_predictions(**context) -> None:  # type: ignore[type-arg]
+    _TOPIC_CONTEXT = "AI/ML research"
+
+    from app.core.config import settings
+    from app.core.database import AsyncSessionLocal
+    from app.graph.graph_analyzer import GraphAnalyzer
+    from app.graph.prediction_synthesizer import PredictionSynthesizer
+    from app.graph.report_archive import ReportArchive
+
+    async def _run() -> None:
+        analyzer = GraphAnalyzer(
+            top_n=settings.graph_top_n_concepts,
+            k_samples=settings.graph_centrality_k_samples,
+        )
+        synthesizer = PredictionSynthesizer()
+        archive = ReportArchive()
+
+        async with AsyncSessionLocal() as session:
+            signals = await analyzer.analyze(session)
+            await session.commit()
+
+        report = await synthesizer.synthesize(signals, topic_context=_TOPIC_CONTEXT)
+
+        async with AsyncSessionLocal() as session:
+            report_id = await archive.save(
+                session=session,
+                topic_context=_TOPIC_CONTEXT,
+                signals=signals,
+                report=report,
+                model_name=settings.ollama_model,
+            )
+            await session.commit()
+
+        log.info(
+            "generate_predictions_complete",
+            report_id=str(report_id),
+            topic_context=_TOPIC_CONTEXT,
+            overall_confidence=report.overall_confidence,
+            directions_predicted=len(report.emerging_directions),
+        )
+
+    asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
 # DAG definition
 # ---------------------------------------------------------------------------
 with DAG(
@@ -359,5 +406,8 @@ with DAG(
     t_analyze = PythonOperator(
         task_id="analyze_graph", python_callable=analyze_graph
     )
+    t_predict = PythonOperator(
+        task_id="generate_predictions", python_callable=generate_predictions
+    )
 
-    t_fetch >> t_index >> t_write >> t_semantic >> t_graph >> t_analyze
+    t_fetch >> t_index >> t_write >> t_semantic >> t_graph >> t_analyze >> t_predict
