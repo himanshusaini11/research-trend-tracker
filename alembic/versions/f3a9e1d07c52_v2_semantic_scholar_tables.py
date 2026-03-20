@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "f3a9e1d07c52"
@@ -16,7 +17,7 @@ down_revision: Union[str, Sequence[str], None] = "2ce13f2f4f5f"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-citation_type_enum = sa.Enum("citation", "reference", name="citation_type_enum")
+citation_type_enum = postgresql.ENUM("citation", "reference", name="citation_type_enum")
 
 
 def upgrade() -> None:
@@ -46,7 +47,7 @@ def upgrade() -> None:
         sa.Column("cited_paper_id", sa.String(64), nullable=False),
         sa.Column(
             "citation_type",
-            sa.Enum("citation", "reference", name="citation_type_enum", create_type=False),
+            postgresql.ENUM("citation", "reference", name="citation_type_enum", create_type=False),
             nullable=False,
         ),
         sa.Column("fetched_at", sa.DateTime(timezone=True), nullable=False),

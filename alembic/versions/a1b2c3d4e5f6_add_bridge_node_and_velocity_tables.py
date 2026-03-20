@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 revision: str = "a1b2c3d4e5f6"
 down_revision: Union[str, Sequence[str], None] = "c8d2f3a91e4b"
@@ -17,8 +18,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Create velocity_trend_enum ENUM type first
-    op.execute("CREATE TYPE velocity_trend_enum AS ENUM ('accelerating', 'decelerating', 'stable');")
+    # Create velocity_trend_enum ENUM type first (checkfirst skips if already exists)
+    postgresql.ENUM(
+        "accelerating", "decelerating", "stable", name="velocity_trend_enum"
+    ).create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "bridge_node_scores",
@@ -40,8 +43,10 @@ def upgrade() -> None:
         sa.Column("acceleration", sa.Float(), nullable=False),
         sa.Column(
             "trend",
-            sa.Enum("accelerating", "decelerating", "stable", name="velocity_trend_enum",
-                    create_type=False),
+            postgresql.ENUM(
+                "accelerating", "decelerating", "stable",
+                name="velocity_trend_enum", create_type=False,
+            ),
             nullable=False,
         ),
         sa.Column("weeks_of_data", sa.Integer(), nullable=False),
