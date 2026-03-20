@@ -8,7 +8,6 @@ from sqlalchemy import any_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, get_rate_limiter
-from app.core.exceptions import NotFoundError
 from app.core.models import Paper
 from app.core.rate_limiter import RateLimiter
 
@@ -43,7 +42,7 @@ async def list_papers(
     stmt = (
         select(Paper)
         .where(
-            category == any_(Paper.categories),
+            category == any_(Paper.categories),  # type: ignore[arg-type]  # SQLAlchemy any_() returns ColumnElement at runtime
             Paper.published_at >= since,
         )
         .order_by(Paper.published_at.desc())
@@ -69,7 +68,7 @@ async def count_papers(
         select(func.count())
         .select_from(Paper)
         .where(
-            category == any_(Paper.categories),
+            category == any_(Paper.categories),  # type: ignore[arg-type]  # SQLAlchemy any_() returns ColumnElement at runtime
             Paper.published_at >= since,
         )
     )

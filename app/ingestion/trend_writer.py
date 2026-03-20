@@ -5,7 +5,6 @@ from datetime import date, datetime, UTC
 from itertools import islice
 from typing import Iterator
 
-from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 

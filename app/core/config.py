@@ -86,6 +86,15 @@ class Settings(BaseSettings):
     arxiv_fetch_delay_seconds: float = 3.0  # respect arXiv rate limits
 
     # -------------------------------------------------------------------------
+    # Semantic Scholar API
+    # -------------------------------------------------------------------------
+    semantic_scholar_api_key: str | None = Field(
+        default=None, description="Optional — raises rate limit from 100 to 1000 req/5 min"
+    )
+    semantic_scholar_base_url: str = "https://api.semanticscholar.org/graph/v1"
+    semantic_scholar_fetch_delay_seconds: float = 3.0  # ~100 req/5 min = 1 req/3s
+
+    # -------------------------------------------------------------------------
     # Rate limiting (Token Bucket via Redis)
     # -------------------------------------------------------------------------
     rate_limit_requests: int = 60       # tokens per window

@@ -50,7 +50,7 @@ async def get_top_papers(
         stmt = (
             select(Paper)
             .where(
-                category == any_(Paper.categories),
+                category == any_(Paper.categories),  # type: ignore[arg-type]  # SQLAlchemy any_() returns ColumnElement at runtime
                 Paper.published_at >= since,
             )
             .order_by(Paper.published_at.desc())

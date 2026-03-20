@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from typing import cast
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -123,10 +124,10 @@ class TrendScorer:
                         keyword=row.keyword,
                         category=row.category,
                         window_date=row.window_date.date(),
-                        count=row.count,
+                        count=cast(int, row.count),  # Row named attr; mypy confuses with tuple.count()
                     )
                 )
-                totals[row.keyword] += row.count
+                totals[row.keyword] += cast(int, row.count)
 
         return [
             TrendSummary(

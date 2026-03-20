@@ -20,7 +20,7 @@ class TrendSummarizerChain:
         self._llm = ChatOllama(
             base_url=ollama_url,
             model=model,
-            timeout=timeout,
+            # timeout kwarg not supported in installed langchain-ollama version
         )
         self._prompt = ChatPromptTemplate.from_messages(
             [
@@ -55,7 +55,7 @@ class TrendSummarizerChain:
             )
         except httpx.ConnectError as exc:
             raise LLMError(
-                f"Cannot connect to Ollama at the configured URL",
+                "Cannot connect to Ollama at the configured URL",
                 detail=str(exc),
             ) from exc
         except httpx.TimeoutException as exc:

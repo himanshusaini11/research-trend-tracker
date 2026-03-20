@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import asyncio
 import time
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from itertools import islice
+from typing import Iterator
 
 import structlog
 from airflow import DAG
@@ -108,6 +110,122 @@ def write_to_db(**context) -> None:  # type: ignore[type-arg]
 
 
 # ---------------------------------------------------------------------------
+# Task 4 — fetch citation/author data from Semantic Scholar
+# ---------------------------------------------------------------------------
+
+def _dag_batched(lst: list, n: int) -> Iterator[list]:
+    it = iter(lst)
+    while chunk := list(islice(it, n)):
+        yield chunk
+
+
+def fetch_semantic_scholar(**context) -> None:  # type: ignore[type-arg]
+    from sqlalchemy import update
+    from sqlalchemy.dialects.postgresql import insert
+
+    from app.core.config import settings
+    from app.core.database import AsyncSessionLocal
+    from app.core.models import Paper, PaperAuthor, PaperCitation
+    from app.ingestion.semantic_scholar import SemanticScholarClient
+
+    _BATCH_SIZE = 2_000
+
+    paper_dicts = context["ti"].xcom_pull(key="papers", task_ids="fetch_papers") or []
+    arxiv_ids: list[str] = [d["arxiv_id"] for d in paper_dicts]
+
+    async def _run() -> tuple[int, int, int, int]:
+        papers_found = 0
+        papers_not_found = 0
+        citations_stored = 0
+        authors_stored = 0
+        fetched_at = datetime.now(UTC)
+
+        async with SemanticScholarClient(
+            api_key=settings.semantic_scholar_api_key,
+            base_url=settings.semantic_scholar_base_url,
+            delay_seconds=settings.semantic_scholar_fetch_delay_seconds,
+        ) as client:
+            for arxiv_id in arxiv_ids:
+                result = await client.fetch_paper_data(arxiv_id)
+
+                if result is None:
+                    papers_not_found += 1
+                    continue
+
+                papers_found += 1
+
+                async with AsyncSessionLocal() as session:
+                    # Update semantic_scholar_id on the canonical papers row
+                    await session.execute(
+                        update(Paper)
+                        .where(Paper.arxiv_id == arxiv_id)
+                        .values(semantic_scholar_id=result.semantic_scholar_id)
+                    )
+
+                    # Insert citation edges (ON CONFLICT DO NOTHING — idempotent)
+                    citation_rows = [
+                        {
+                            "source_arxiv_id": arxiv_id,
+                            "cited_paper_id": ref.paper_id,
+                            "citation_type": "citation",
+                            "fetched_at": fetched_at,
+                        }
+                        for ref in result.citations
+                    ]
+                    reference_rows = [
+                        {
+                            "source_arxiv_id": arxiv_id,
+                            "cited_paper_id": ref.paper_id,
+                            "citation_type": "reference",
+                            "fetched_at": fetched_at,
+                        }
+                        for ref in result.references
+                    ]
+                    for batch in _dag_batched(citation_rows + reference_rows, _BATCH_SIZE):
+                        await session.execute(
+                            insert(PaperCitation)
+                            .values(batch)
+                            .on_conflict_do_nothing(
+                                index_elements=["source_arxiv_id", "cited_paper_id", "citation_type"]
+                            )
+                        )
+                    citations_stored += len(citation_rows) + len(reference_rows)
+
+                    # Insert author records (ON CONFLICT DO NOTHING — idempotent)
+                    author_rows = [
+                        {
+                            "paper_id": arxiv_id,
+                            "author_id": a.author_id,
+                            "author_name": a.author_name,
+                            "fetched_at": fetched_at,
+                        }
+                        for a in result.authors
+                    ]
+                    for batch in _dag_batched(author_rows, _BATCH_SIZE):
+                        await session.execute(
+                            insert(PaperAuthor)
+                            .values(batch)
+                            .on_conflict_do_nothing(
+                                index_elements=["paper_id", "author_id"]
+                            )
+                        )
+                    authors_stored += len(author_rows)
+
+                    await session.commit()
+
+        return papers_found, papers_not_found, citations_stored, authors_stored
+
+    papers_found, papers_not_found, citations_stored, authors_stored = asyncio.run(_run())
+    log.info(
+        "fetch_semantic_scholar_complete",
+        papers_found=papers_found,
+        papers_not_found=papers_not_found,
+        citations_stored=citations_stored,
+        authors_stored=authors_stored,
+    )
+
+
+# ---------------------------------------------------------------------------
 # DAG definition
 # ---------------------------------------------------------------------------
 with DAG(
@@ -122,5 +240,8 @@ with DAG(
     t_fetch = PythonOperator(task_id="fetch_papers", python_callable=fetch_papers)
     t_index = PythonOperator(task_id="index_keywords", python_callable=index_keywords)
     t_write = PythonOperator(task_id="write_to_db", python_callable=write_to_db)
+    t_semantic = PythonOperator(
+        task_id="fetch_semantic_scholar", python_callable=fetch_semantic_scholar
+    )
 
-    t_fetch >> t_index >> t_write
+    t_fetch >> t_index >> t_write >> t_semantic

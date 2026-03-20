@@ -41,7 +41,7 @@ class RateLimiter:
             while True:
                 try:
                     await pipe.watch(key)
-                    raw = await pipe.hgetall(key)
+                    raw = await pipe.hgetall(key)  # type: ignore[misc]  # redis-py pipeline returns Awaitable|value union
 
                     tokens = float(raw.get("tokens", self._max_tokens))
                     last_refill = float(raw.get("last_refill", now))
@@ -57,7 +57,7 @@ class RateLimiter:
                     tokens -= 1
 
                     pipe.multi()
-                    await pipe.hset(key, mapping={"tokens": tokens, "last_refill": now})
+                    await pipe.hset(key, mapping={"tokens": tokens, "last_refill": now})  # type: ignore[misc]  # redis-py pipeline returns Awaitable|value union
                     await pipe.expire(key, settings.rate_limit_window_seconds * 2)
                     await pipe.execute()
                     return True

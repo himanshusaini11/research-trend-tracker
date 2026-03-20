@@ -49,7 +49,7 @@ class ArxivClient:
     async def _fetch_category(
         self, client: httpx.AsyncClient, category: str, since: datetime
     ) -> list[ArxivPaper]:
-        params = {
+        params: dict[str, str | int] = {
             "search_query": f"cat:{category}",
             "sortBy": "submittedDate",
             "sortOrder": "descending",
