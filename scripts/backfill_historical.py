@@ -64,7 +64,7 @@ async def _fetch_date_range(
                 await asyncio.sleep(delay_seconds)
 
             params: dict[str, str | int] = {
-                "search_query": f"cat:{cat} AND submittedDate:[{start_str}* TO {end_str}*]",
+                "search_query": f"cat:{cat} AND submittedDate:[{start_str} TO {end_str}]",
                 "sortBy": "submittedDate",
                 "sortOrder": "descending",
                 "max_results": max_results,
