@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 from abc import ABC, abstractmethod
 
 from app.core.logger import get_logger
@@ -73,16 +74,33 @@ class BaseEntityExtractor(ABC):
     # ------------------------------------------------------------------
 
     def _parse(self, arxiv_id: str, raw_json: str) -> EntityExtractionResult:
-        """Parse a raw JSON string from any backend into EntityExtractionResult."""
+        """Parse a raw JSON string from any backend into EntityExtractionResult.
+
+        Handles:
+        - Markdown-fenced responses (```json ... ```)
+        - Empty strings
+        - Valid JSON with missing keys (returns [] for each)
+        """
+        text = raw_json.strip()
+
+        # Strip markdown fences if the model wrapped the JSON
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?\s*", "", text)
+            text = re.sub(r"\s*```$", "", text)
+            text = text.strip()
+
+        if not text:
+            return self._empty(arxiv_id)
+
         try:
-            data = json.loads(raw_json)
+            data = json.loads(text)
         except json.JSONDecodeError:
             log.warning(
                 "entity_extractor_malformed_json",
                 arxiv_id=arxiv_id,
                 raw=raw_json[:200],
             )
-            return EntityExtractionResult(arxiv_id=arxiv_id, concepts=[], methods=[], datasets=[])
+            return self._empty(arxiv_id)
 
         return EntityExtractionResult(
             arxiv_id=arxiv_id,
