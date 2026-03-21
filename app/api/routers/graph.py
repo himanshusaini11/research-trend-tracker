@@ -44,7 +44,7 @@ async def top_concepts(
         top_n=settings.graph_top_n_concepts,
         k_samples=settings.graph_centrality_k_samples,
     )
-    return await analyzer.analyze(db)
+    return await analyzer.read_signals(db)
 
 
 @router.get("/predictions/latest", response_model=list[ArchivedReport])

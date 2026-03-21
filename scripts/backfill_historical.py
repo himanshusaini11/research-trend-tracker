@@ -89,28 +89,69 @@ async def _fetch_date_range(
     return list(papers.values())
 
 
+def _month_ranges(start: datetime, end: datetime) -> list[tuple[datetime, datetime]]:
+    """Split [start, end] into (month_start, month_end) pairs."""
+    from calendar import monthrange
+
+    ranges: list[tuple[datetime, datetime]] = []
+    cur = start.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    while cur <= end:
+        _, last_day = monthrange(cur.year, cur.month)
+        month_end = cur.replace(day=last_day, hour=23, minute=59, second=59)
+        ranges.append((max(cur, start), min(month_end, end)))
+        # advance to first day of next month
+        if cur.month == 12:
+            cur = cur.replace(year=cur.year + 1, month=1)
+        else:
+            cur = cur.replace(month=cur.month + 1)
+    return ranges
+
+
 async def _run(
     start_date: datetime,
     end_date: datetime,
     categories: list[str],
     no_semantic: bool = False,
+    monthly_batches: bool = False,
 ) -> None:
     print(f"\n{'='*60}")
     print(f"Backfill: {start_date.date()} → {end_date.date()}")
     print(f"Categories: {', '.join(categories)}")
     if no_semantic:
         print("Semantic Scholar: skipped (--no-semantic)")
+    if monthly_batches:
+        print("Mode: monthly batches")
     print(f"{'='*60}\n")
 
     # ── Step 1: Fetch papers from arXiv ───────────────────────────────────
     print("[1/3] Fetching papers from arXiv…")
-    papers = await _fetch_date_range(
-        categories=categories,
-        start_date=start_date,
-        end_date=end_date,
-        max_results=settings.arxiv_max_results_per_fetch,
-        delay_seconds=settings.arxiv_fetch_delay_seconds,
-    )
+
+    if monthly_batches:
+        batches = _month_ranges(start_date, end_date)
+        all_papers: dict[str, object] = {}
+        for batch_start, batch_end in batches:
+            label = batch_start.strftime("%b %Y")
+            print(f"  [{label}] fetching…", end=" ", flush=True)
+            batch = await _fetch_date_range(
+                categories=categories,
+                start_date=batch_start,
+                end_date=batch_end,
+                max_results=settings.arxiv_max_results_per_fetch,
+                delay_seconds=settings.arxiv_fetch_delay_seconds,
+            )
+            for p in batch:
+                all_papers.setdefault(p.arxiv_id, p)  # type: ignore[assignment]
+            print(f"→ {len(batch)} papers")
+        papers = list(all_papers.values())  # type: ignore[assignment]
+    else:
+        papers = await _fetch_date_range(
+            categories=categories,
+            start_date=start_date,
+            end_date=end_date,
+            max_results=settings.arxiv_max_results_per_fetch,
+            delay_seconds=settings.arxiv_fetch_delay_seconds,
+        )
+
     print(f"      → {len(papers)} unique papers fetched\n")
 
     if not papers:
@@ -218,6 +259,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--categories", default="cs.CL,cs.AI", help="Comma-separated arXiv categories")
     parser.add_argument("--no-semantic", action="store_true", default=False,
                         help="Skip Semantic Scholar citation enrichment")
+    parser.add_argument("--monthly-batches", action="store_true", default=False,
+                        help="Loop month-by-month instead of one big query")
     return parser.parse_args()
 
 
@@ -228,4 +271,4 @@ if __name__ == "__main__":
     end = datetime.strptime(args.end_date, "%Y-%m-%d").replace(hour=23, minute=59, second=59, tzinfo=UTC)
     cats = [c.strip() for c in args.categories.split(",")]
 
-    asyncio.run(_run(start, end, cats, no_semantic=args.no_semantic))
+    asyncio.run(_run(start, end, cats, no_semantic=args.no_semantic, monthly_batches=args.monthly_batches))

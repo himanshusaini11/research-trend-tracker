@@ -30,11 +30,16 @@ def test_strip_agtype_strips_whitespace_before_checking() -> None:
 # ---------------------------------------------------------------------------
 
 def _make_session(rows: list[tuple[str, str, str]]) -> AsyncMock:
-    """Build a mock AsyncSession whose execute() returns the given rows."""
+    """Build a mock AsyncSession whose connection().exec_driver_sql() returns the given rows."""
     result_mock = MagicMock()
     result_mock.all.return_value = rows
+
+    conn_mock = AsyncMock()
+    # Three calls: LOAD 'age', SET search_path, then the actual Cypher query
+    conn_mock.exec_driver_sql = AsyncMock(side_effect=[None, None, result_mock])
+
     session = AsyncMock()
-    session.execute = AsyncMock(return_value=result_mock)
+    session.connection = AsyncMock(return_value=conn_mock)
     return session
 
 
@@ -159,5 +164,5 @@ async def test_compute_executes_upsert_for_results() -> None:
     detector = BridgeNodeDetector(k_samples=10)
     await detector.compute(session, top_n=5)
 
-    # session.execute called at least twice: AGE query + upsert
-    assert session.execute.call_count >= 2
+    # session.execute called once for the upsert (AGE query uses conn.exec_driver_sql)
+    assert session.execute.call_count >= 1

@@ -10,14 +10,20 @@ from app.graph.schemas import EntityExtractionResult
 
 
 def _mock_session() -> AsyncMock:
+    # conn_mock captures exec_driver_sql calls made by _cypher()
+    conn_mock = AsyncMock()
+    conn_mock.exec_driver_sql = AsyncMock(return_value=None)
+
     session = AsyncMock()
-    session.execute = AsyncMock(return_value=MagicMock())
-    # scalars().all() for the citation query
+    session.connection = AsyncMock(return_value=conn_mock)
+    # scalars().all() for the citation SQLAlchemy query
     scalars_mock = MagicMock()
     scalars_mock.all.return_value = []
     result_mock = MagicMock()
     result_mock.scalars.return_value = scalars_mock
-    session.execute.return_value = result_mock
+    session.execute = AsyncMock(return_value=result_mock)
+    # Expose conn so tests can inspect exec_driver_sql calls
+    session._conn_mock = conn_mock
     return session
 
 
@@ -85,7 +91,7 @@ async def test_build_creates_paper_node() -> None:
         result=_empty_result(),
     )
 
-    executed_sqls = [str(c.args[0]) for c in session.execute.call_args_list]
+    executed_sqls = [str(c.args[0]) for c in session._conn_mock.exec_driver_sql.call_args_list]
     assert any("MERGE (p:Paper" in s and "2401.00001" in s for s in executed_sqls)
 
 
@@ -101,7 +107,7 @@ async def test_build_paper_null_year() -> None:
         result=_empty_result("2401.00002"),
     )
 
-    executed_sqls = [str(c.args[0]) for c in session.execute.call_args_list]
+    executed_sqls = [str(c.args[0]) for c in session._conn_mock.exec_driver_sql.call_args_list]
     assert any("year: null" in s for s in executed_sqls)
 
 
@@ -121,7 +127,7 @@ async def test_build_creates_author_node_and_by_edge() -> None:
         result=_empty_result(),
     )
 
-    sqls = [str(c.args[0]) for c in session.execute.call_args_list]
+    sqls = [str(c.args[0]) for c in session._conn_mock.exec_driver_sql.call_args_list]
     assert any("MERGE (a:Author" in s and "Alice Smith" in s for s in sqls)
     assert any("MERGE (p)-[:BY]->(a)" in s for s in sqls)
 
@@ -140,7 +146,7 @@ async def test_build_multiple_authors_all_merged() -> None:
     )
 
     # One BY edge per author
-    sqls = [str(c.args[0]) for c in session.execute.call_args_list]
+    sqls = [str(c.args[0]) for c in session._conn_mock.exec_driver_sql.call_args_list]
     by_edges = [s for s in sqls if "MERGE (p)-[:BY]->(a)" in s]
     assert len(by_edges) == 3
     assert edges >= 3
@@ -168,7 +174,7 @@ async def test_build_creates_concept_nodes_and_mentions_edges() -> None:
         result=result,
     )
 
-    sqls = [str(c.args[0]) for c in session.execute.call_args_list]
+    sqls = [str(c.args[0]) for c in session._conn_mock.exec_driver_sql.call_args_list]
     assert any("attention mechanism" in s and "MERGE (c:Concept" in s for s in sqls)
     assert any("MERGE (p)-[:MENTIONS]->(c)" in s for s in sqls)
     assert concepts == 2
@@ -197,7 +203,7 @@ async def test_build_creates_method_nodes_and_uses_method_edges() -> None:
         result=result,
     )
 
-    sqls = [str(c.args[0]) for c in session.execute.call_args_list]
+    sqls = [str(c.args[0]) for c in session._conn_mock.exec_driver_sql.call_args_list]
     assert any("BERT" in s and "MERGE (c:Concept" in s for s in sqls)
     assert any("MERGE (p)-[:USES_METHOD]->(c)" in s for s in sqls)
     assert concepts == 2
@@ -229,7 +235,7 @@ async def test_build_creates_cites_edges_from_db() -> None:
         result=_empty_result(),
     )
 
-    sqls = [str(c.args[0]) for c in session.execute.call_args_list]
+    sqls = [str(c.args[0]) for c in session._conn_mock.exec_driver_sql.call_args_list]
     assert any("MERGE (p2:Paper" in s and "cited-abc" in s for s in sqls)
     assert any("MERGE (p)-[:CITES]->(p2)" in s for s in sqls)
     assert edges >= 1
@@ -251,7 +257,7 @@ async def test_build_sanitizes_title_with_quotes() -> None:
         result=_empty_result(),
     )
 
-    sqls = [str(c.args[0]) for c in session.execute.call_args_list]
+    sqls = [str(c.args[0]) for c in session._conn_mock.exec_driver_sql.call_args_list]
     paper_merge = next(s for s in sqls if "MERGE (p:Paper" in s)
     # Original dangerous chars must be stripped from the injected value
     assert "It's" not in paper_merge   # apostrophe removed from title

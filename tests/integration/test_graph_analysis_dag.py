@@ -116,18 +116,37 @@ def _seed_keyword_counts(loop, sf, concept: str, counts: list[int]) -> None:
 
 
 def _make_age_mock_session(real_sf):
-    """Wrap a real session factory so that AGE cypher queries return fake rows."""
+    """Wrap a real session factory so that AGE setup + cypher queries return fake rows.
+
+    BridgeNodeDetector routes through session.connection() + conn.exec_driver_sql(),
+    not session.execute(), so we intercept at the connection level.
+    """
     fake_age_result = MagicMock()
     fake_age_result.all.return_value = _AGE_ROWS
+
+    class _PatchedConn:
+        def __init__(self, real_conn) -> None:  # type: ignore[no-untyped-def]
+            self._real = real_conn
+
+        async def exec_driver_sql(self, sql: str, *args, **kwargs):  # type: ignore[no-untyped-def]
+            sql_strip = sql.strip()
+            # Swallow AGE setup calls (LOAD + SET search_path) — AGE not in testcontainers
+            if sql_strip.startswith("LOAD") or "search_path" in sql_strip:
+                return None
+            # Return fake rows for the Concept edge query
+            if "cypher(" in sql_strip:
+                return fake_age_result
+            return await self._real.exec_driver_sql(sql, *args, **kwargs)
 
     class _PatchedSession:
         def __init__(self, real_session: AsyncSession) -> None:
             self._real = real_session
 
+        async def connection(self):  # type: ignore[no-untyped-def]
+            real_conn = await self._real.connection()
+            return _PatchedConn(real_conn)
+
         async def execute(self, stmt):  # type: ignore[no-untyped-def]
-            stmt_str = str(stmt)
-            if "cypher(" in stmt_str:
-                return fake_age_result
             return await self._real.execute(stmt)
 
         async def commit(self) -> None:
@@ -139,11 +158,11 @@ def _make_age_mock_session(real_sf):
         async def close(self) -> None:
             await self._real.close()
 
-        async def __aenter__(self):
+        async def __aenter__(self):  # type: ignore[no-untyped-def]
             await self._real.__aenter__()
             return self
 
-        async def __aexit__(self, *args):
+        async def __aexit__(self, *args):  # type: ignore[no-untyped-def]
             return await self._real.__aexit__(*args)
 
     class _PatchedFactory:

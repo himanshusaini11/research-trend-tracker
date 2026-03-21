@@ -30,6 +30,9 @@ class Paper(Base):
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, index=True
     )
+    graph_processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
 
     __table_args__ = (Index("ix_papers_categories", "categories", postgresql_using="gin"),)
 

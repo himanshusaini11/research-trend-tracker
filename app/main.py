@@ -33,7 +33,11 @@ app = FastAPI(
 # ---------------------------------------------------------------------------
 # Middleware
 # ---------------------------------------------------------------------------
-origins = ["*"] if settings.app_env == "development" else []
+origins = (
+    ["*"]
+    if settings.app_env == "development"
+    else ["http://localhost:3001"]
+)
 
 app.add_middleware(
     CORSMiddleware,

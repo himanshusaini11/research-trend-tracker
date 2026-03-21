@@ -14,18 +14,18 @@ Usage:
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import select, text
+from sqlalchemy import text
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.core.models import Paper
 from app.graph.entity_extractor import EntityExtractor
 from app.graph.graph_analyzer import GraphAnalyzer
 from app.graph.prediction_synthesizer import PredictionSynthesizer
@@ -35,93 +35,115 @@ from app.graph.relation_builder import RelationBuilder
 _TOPIC_CONTEXT = "LLM/AI research Oct-Dec 2024"
 
 
-async def _run() -> None:
+async def _run(
+    skip_extraction: bool = False,
+    skip_graph: bool = False,
+    skip_analysis: bool = False,
+    skip_prediction: bool = False,
+) -> None:
     print(f"\n{'='*60}")
     print("Graph + Prediction Pipeline")
     print(f"Topic context: {_TOPIC_CONTEXT}")
     print(f"{'='*60}\n")
 
     # ── Step 1 & 2: Entity extraction + graph building ────────────────────
-    print("[1/4] Running EntityExtractor + RelationBuilder…")
+    if skip_extraction:
+        print("[1/4] Skipped (--skip-extraction)")
+        papers_processed = total_concepts = total_edges = 0
+    else:
+        print("[1/4] Running EntityExtractor + RelationBuilder…")
 
-    extractor = EntityExtractor(
-        ollama_url=settings.ollama_url,
-        model=settings.ollama_model,
-        timeout=settings.ollama_request_timeout_seconds,
-    )
+        extractor = EntityExtractor(
+            ollama_url=settings.ollama_url,
+            model=settings.ollama_model,
+            timeout=settings.ollama_request_timeout_seconds,
+        )
 
-    async with AsyncSessionLocal() as session:
-        paper_rows = (await session.execute(select(Paper))).scalars().all()
+        async with AsyncSessionLocal() as session:
+            paper_rows = await extractor.get_unprocessed_papers(session)
 
-    papers_processed = 0
-    total_concepts = 0
-    total_edges = 0
+        papers_processed = 0
+        total_concepts = 0
+        total_edges = 0
 
-    async with AsyncSessionLocal() as session:
-        builder = RelationBuilder(session)
-        await builder.setup()
+        async with AsyncSessionLocal() as session:
+            builder = RelationBuilder(session)
+            await builder.setup()
 
-        for paper in paper_rows:
-            # Load authors for this paper from DB
-            author_rows = (
-                await session.execute(
-                    text(
-                        "SELECT author_id, author_name FROM paper_authors"
-                        " WHERE paper_id = :arxiv_id"
-                    ).bindparams(arxiv_id=paper.arxiv_id)
+            for paper in paper_rows:
+                # Load authors for this paper from DB
+                author_rows = (
+                    await session.execute(
+                        text(
+                            "SELECT author_id, author_name FROM paper_authors"
+                            " WHERE paper_id = :arxiv_id"
+                        ).bindparams(arxiv_id=paper.arxiv_id)
+                    )
+                ).all()
+                authors: list[tuple[str, str]] = [(r[0], r[1]) for r in author_rows]
+
+                year: int | None = None
+                try:
+                    year = paper.published_at.year
+                except Exception:
+                    pass
+
+                result = await extractor.extract(paper.arxiv_id, paper.title, paper.abstract)
+
+                concepts_created, edges_created = await builder.build_for_paper(
+                    arxiv_id=paper.arxiv_id,
+                    title=paper.title,
+                    year=year,
+                    authors=authors,
+                    result=result,
                 )
-            ).all()
-            authors: list[tuple[str, str]] = [(r[0], r[1]) for r in author_rows]
 
-            year: int | None = None
-            try:
-                year = paper.published_at.year
-            except Exception:
-                pass
+                if not skip_graph:
+                    await builder.build_concept_cooccurrence(paper.arxiv_id)
 
-            result = await extractor.extract(paper.arxiv_id, paper.title, paper.abstract)
+                await extractor.mark_processed(session, paper)
 
-            concepts_created, edges_created = await builder.build_for_paper(
-                arxiv_id=paper.arxiv_id,
-                title=paper.title,
-                year=year,
-                authors=authors,
-                result=result,
-            )
-            await builder.build_concept_cooccurrence(paper.arxiv_id)
+                papers_processed += 1
+                total_concepts += concepts_created
+                total_edges += edges_created
 
-            papers_processed += 1
-            total_concepts += concepts_created
-            total_edges += edges_created
-
-        await session.commit()
+            await session.commit()
 
     print(f"      → {papers_processed} papers, {total_concepts} concepts, {total_edges} edges\n")
 
-    # ── Step 3: Graph analysis (bridge nodes + velocity) ──────────────────
-    print("[2/4] Running GraphAnalyzer…")
+    # ── Step 2: Graph analysis (bridge nodes + velocity) ──────────────────
+    signals: list = []
+    if skip_analysis:
+        print("[2/4] Skipped (--skip-analysis)")
+    else:
+        print("[2/4] Running GraphAnalyzer…")
 
-    analyzer = GraphAnalyzer(
-        top_n=settings.graph_top_n_concepts,
-        k_samples=settings.graph_centrality_k_samples,
-    )
+        analyzer = GraphAnalyzer(
+            top_n=settings.graph_top_n_concepts,
+            k_samples=settings.graph_centrality_k_samples,
+        )
 
-    async with AsyncSessionLocal() as session:
-        signals = await analyzer.analyze(session)
-        await session.commit()
+        async with AsyncSessionLocal() as session:
+            signals = await analyzer.analyze(session)
+            await session.commit()
 
-    print(f"      → {len(signals)} concept signals computed")
-    if signals:
-        print("      Top 5 concepts by composite score:")
-        for s in signals[:5]:
-            print(
-                f"        {s.concept_name:<30} "
-                f"composite={s.composite_score:.3f}  "
-                f"trend={s.trend}"
-            )
-    print()
+        print(f"      → {len(signals)} concept signals computed")
+        if signals:
+            print("      Top 5 concepts by composite score:")
+            for s in signals[:5]:
+                print(
+                    f"        {s.concept_name:<30} "
+                    f"composite={s.composite_score:.3f}  "
+                    f"trend={s.trend}"
+                )
+        print()
 
-    # ── Step 4: Prediction synthesis ──────────────────────────────────────
+    # ── Step 3: Prediction synthesis ──────────────────────────────────────
+    if skip_prediction:
+        print("[3/4] Skipped (--skip-prediction)")
+        print("[4/4] Skipped (--skip-prediction)")
+        return
+
     print("[3/4] Running PredictionSynthesizer (this may take a minute)…")
 
     synthesizer = PredictionSynthesizer(
@@ -132,7 +154,7 @@ async def _run() -> None:
     report = await synthesizer.synthesize(signals, topic_context=_TOPIC_CONTEXT)
     print(f"      → confidence: {report.overall_confidence}\n")
 
-    # ── Step 5: Save report ───────────────────────────────────────────────
+    # ── Step 4: Save report ───────────────────────────────────────────────
     print("[4/4] Saving report to ReportArchive…")
 
     archive = ReportArchive()
@@ -192,4 +214,19 @@ async def _run() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(_run())
+    parser = argparse.ArgumentParser(description="Run the graph + prediction pipeline")
+    parser.add_argument("--skip-extraction", action="store_true",
+                        help="Skip Ollama entity extraction + relation building")
+    parser.add_argument("--skip-graph", action="store_true",
+                        help="Skip CO_OCCURS_WITH edge building")
+    parser.add_argument("--skip-analysis", action="store_true",
+                        help="Skip BridgeNodeDetector + VelocityTracker")
+    parser.add_argument("--skip-prediction", action="store_true",
+                        help="Skip PredictionSynthesizer + ReportArchive")
+    args = parser.parse_args()
+    asyncio.run(_run(
+        skip_extraction=args.skip_extraction,
+        skip_graph=args.skip_graph,
+        skip_analysis=args.skip_analysis,
+        skip_prediction=args.skip_prediction,
+    ))

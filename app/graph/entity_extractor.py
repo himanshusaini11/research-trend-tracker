@@ -6,10 +6,14 @@ Must NOT import from app/api/ or app/mcp_server/.
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 
 import httpx
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import get_logger
+from app.core.models import Paper
 from app.graph.schemas import EntityExtractionResult
 
 log = get_logger(__name__)
@@ -42,6 +46,18 @@ class EntityExtractor:
         self._ollama_url = ollama_url.rstrip("/")
         self._model = model
         self._timeout = timeout
+
+    async def get_unprocessed_papers(self, session: AsyncSession) -> list[Paper]:
+        """Return papers where graph_processed_at IS NULL (not yet entity-extracted)."""
+        rows = await session.execute(
+            select(Paper).where(Paper.graph_processed_at.is_(None))
+        )
+        return list(rows.scalars().all())
+
+    async def mark_processed(self, session: AsyncSession, paper: Paper) -> None:
+        """Stamp graph_processed_at on the paper and flush (caller commits)."""
+        paper.graph_processed_at = datetime.now(UTC)
+        await session.flush()
 
     async def extract(
         self,
