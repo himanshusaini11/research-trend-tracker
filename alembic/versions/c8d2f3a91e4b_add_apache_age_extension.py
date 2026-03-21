@@ -36,6 +36,10 @@ def upgrade() -> None:
         END $$;
     """)
 
+    # 4. Reset search_path back to public so subsequent migrations in this
+    #    transaction create tables in the correct schema.
+    op.execute('SET search_path = "$user", public;')
+
 
 def downgrade() -> None:
     op.execute("LOAD 'age';")
