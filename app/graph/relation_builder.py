@@ -151,6 +151,20 @@ class RelationBuilder:
         )
         return concepts_created, edges_created
 
+    async def build_concept_cooccurrence(self, arxiv_id: str) -> None:
+        """Create CO_OCCURS_WITH edges between every pair of Concept nodes
+        that co-occur in the same paper (share a MENTIONS edge from it).
+        """
+        aid = _s(arxiv_id)
+        await self._cypher(
+            f"MATCH (p:Paper {{arxiv_id: '{aid}'}})-[:MENTIONS]->(c1:Concept) "
+            f"MATCH (p)-[:MENTIONS]->(c2:Concept) "
+            f"WHERE c1 <> c2 "
+            f"MERGE (c1)-[:CO_OCCURS_WITH]->(c2) "
+            f"RETURN c1",
+            "c1",
+        )
+
     async def _cypher(self, query: str, return_col: str) -> None:
         """Execute a single cypher statement via AGE's SQL wrapper.
 

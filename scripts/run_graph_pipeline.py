@@ -88,6 +88,7 @@ async def _run() -> None:
                 authors=authors,
                 result=result,
             )
+            await builder.build_concept_cooccurrence(paper.arxiv_id)
 
             papers_processed += 1
             total_concepts += concepts_created

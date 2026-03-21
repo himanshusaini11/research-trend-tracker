@@ -9,7 +9,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import networkx as nx  # type: ignore[import-untyped]
-from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,9 +56,16 @@ class BridgeNodeDetector:
         Returns top_n results sorted by centrality score descending.
         Stores results in bridge_node_scores (upsert).
         """
+        # Every AGE session requires LOAD + search_path before cypher() calls
+        conn = await session.connection()
+        await conn.exec_driver_sql("LOAD 'age'")
+        await conn.exec_driver_sql(
+            'SET search_path = ag_catalog, "$user", public'
+        )
+
         # Build networkx DiGraph from AGE
         G: nx.DiGraph = nx.DiGraph()
-        rows = (await session.execute(text(_CONCEPT_EDGE_QUERY))).all()
+        rows = (await conn.exec_driver_sql(_CONCEPT_EDGE_QUERY)).all()
         for row in rows:
             src = _strip_agtype(str(row[0]))
             tgt = _strip_agtype(str(row[2]))
