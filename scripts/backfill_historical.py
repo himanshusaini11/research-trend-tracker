@@ -162,12 +162,14 @@ async def _run(
     print("[2/3] Indexing keywords and writing to DB…")
     indexer = KeywordIndexer()
     kw_results = [indexer.extract_keywords(p) for p in papers]
+    # window_date is only the fallback; write_keywords uses each paper's
+    # published_at when papers= is provided, giving real monthly buckets.
     window_date = datetime.now(UTC)
 
     async with AsyncSessionLocal() as session:
         writer = TrendWriter(session)
         new_papers, skipped = await writer.write_papers(papers)
-        kw_count = await writer.write_keywords(kw_results, window_date)
+        kw_count = await writer.write_keywords(kw_results, window_date, papers=papers)
         await session.commit()
 
     print(f"      → {new_papers} new papers, {skipped} skipped, {kw_count} keyword rows\n")

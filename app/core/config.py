@@ -79,10 +79,10 @@ class Settings(BaseSettings):
     # arXiv ingestion
     # -------------------------------------------------------------------------
     arxiv_categories: list[str] = Field(
-        default=["cs.AI", "cs.LG", "cs.CL", "stat.ML"],
+        default=["cs.AI", "cs.LG", "cs.CL", "cs.CV", "cs.NE", "stat.ML", "cs.IR", "eess.SP", "eess.IV"],
         description="arXiv category filters for ingestion",
     )
-    arxiv_max_results_per_fetch: int = 500
+    arxiv_max_results_per_fetch: int = 1000
     arxiv_fetch_delay_seconds: float = 3.0  # respect arXiv rate limits
 
     # -------------------------------------------------------------------------
@@ -95,10 +95,17 @@ class Settings(BaseSettings):
     semantic_scholar_fetch_delay_seconds: float = 3.0  # ~100 req/5 min = 1 req/3s
 
     # -------------------------------------------------------------------------
+    # LLM extraction backend
+    # -------------------------------------------------------------------------
+    extraction_backend: str = "ollama"  # ollama | anthropic-haiku | anthropic-sonnet
+    anthropic_api_key: str | None = None
+    anthropic_batch_poll_interval_seconds: int = 30
+
+    # -------------------------------------------------------------------------
     # Graph analysis
     # -------------------------------------------------------------------------
-    graph_top_n_concepts: int = 20
-    graph_centrality_k_samples: int = 100
+    graph_top_n_concepts: int = 200
+    graph_centrality_k_samples: int = 200
 
     # -------------------------------------------------------------------------
     # Rate limiting (Token Bucket via Redis)

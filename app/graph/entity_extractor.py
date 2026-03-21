@@ -9,7 +9,7 @@ import json
 from datetime import UTC, datetime
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logger import get_logger
@@ -55,9 +55,16 @@ class EntityExtractor:
         return list(rows.scalars().all())
 
     async def mark_processed(self, session: AsyncSession, paper: Paper) -> None:
-        """Stamp graph_processed_at on the paper and flush (caller commits)."""
-        paper.graph_processed_at = datetime.now(UTC)
-        await session.flush()
+        """Stamp graph_processed_at on the paper via a direct UPDATE.
+
+        Uses an UPDATE statement rather than mutating the ORM object, so this
+        works correctly even when `paper` was loaded in a different session.
+        """
+        await session.execute(
+            update(Paper)
+            .where(Paper.arxiv_id == paper.arxiv_id)
+            .values(graph_processed_at=datetime.now(UTC))
+        )
 
     async def extract(
         self,

@@ -1,118 +1,254 @@
 """Run the full graph + analysis + prediction pipeline manually (outside Airflow).
 
-Processes all papers in the DB through:
-  1. EntityExtractor   — extract concepts/methods via Ollama
-  2. RelationBuilder   — write nodes/edges to AGE
-  3. GraphAnalyzer     — compute bridge-node centrality + velocity
+Processes all (or --limit N) unprocessed papers through:
+  1. Entity extraction  — via selected LLM backend (Ollama or Anthropic Batch)
+  2. RelationBuilder    — write nodes/edges to AGE
+  3. GraphAnalyzer      — compute bridge-node centrality + velocity
   4. PredictionSynthesizer — generate structured prediction report
-  5. ReportArchive     — persist report to prediction_reports table
+  5. ReportArchive      — persist report to prediction_reports table
 
-Prints the full report to stdout and the report UUID for later validation.
+Usage (Ollama, 4 concurrent):
+    uv run python scripts/run_graph_pipeline.py --concurrency 4
 
-Usage:
-    uv run python scripts/run_graph_pipeline.py
+Usage (Anthropic Haiku batch):
+    uv run python scripts/run_graph_pipeline.py --backend anthropic-haiku
+
+Usage (benchmark, skip everything except extraction):
+    uv run python scripts/run_graph_pipeline.py --limit 10 --skip-graph \\
+        --skip-analysis --skip-prediction
 """
 from __future__ import annotations
 
 import argparse
 import asyncio
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
-from sqlalchemy import text
+from sqlalchemy import select, text, update
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.graph.entity_extractor import EntityExtractor
+from app.core.models import Paper
+from app.graph.extractors.factory import get_extractor
 from app.graph.graph_analyzer import GraphAnalyzer
 from app.graph.prediction_synthesizer import PredictionSynthesizer
 from app.graph.report_archive import ReportArchive
 from app.graph.relation_builder import RelationBuilder
+from app.graph.schemas import EntityExtractionResult
 
 _TOPIC_CONTEXT = "LLM/AI research Oct-Dec 2024"
 
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+async def _get_unprocessed_papers(limit: int | None) -> list[Paper]:
+    """Load papers where graph_processed_at IS NULL, optionally capped at limit."""
+    async with AsyncSessionLocal() as session:
+        rows = (
+            await session.execute(
+                select(Paper).where(Paper.graph_processed_at.is_(None))
+            )
+        ).scalars().all()
+    papers = list(rows)
+    if limit is not None:
+        papers = papers[:limit]
+    return papers
+
+
+async def _mark_processed(session, arxiv_id: str) -> None:  # type: ignore[no-untyped-def]
+    """Stamp graph_processed_at via a direct UPDATE (session-safe across contexts)."""
+    await session.execute(
+        update(Paper)
+        .where(Paper.arxiv_id == arxiv_id)
+        .values(graph_processed_at=datetime.now(UTC))
+    )
+
+
+async def _build_and_mark(
+    paper: Paper,
+    result: EntityExtractionResult,
+    skip_graph: bool,
+) -> tuple[int, int]:
+    """Write graph nodes/edges for one paper and stamp graph_processed_at.
+
+    Each call opens its own session so concurrent callers don't share state.
+    """
+    async with AsyncSessionLocal() as session:
+        builder = RelationBuilder(session)
+        await builder.setup()
+
+        # Author rows
+        author_rows = (
+            await session.execute(
+                text(
+                    "SELECT author_id, author_name FROM paper_authors"
+                    " WHERE paper_id = :arxiv_id"
+                ).bindparams(arxiv_id=paper.arxiv_id)
+            )
+        ).all()
+        authors: list[tuple[str, str]] = [(r[0], r[1]) for r in author_rows]
+
+        year: int | None = None
+        try:
+            year = paper.published_at.year
+        except Exception:
+            pass
+
+        concepts_created, edges_created = await builder.build_for_paper(
+            arxiv_id=paper.arxiv_id,
+            title=paper.title,
+            year=year,
+            authors=authors,
+            result=result,
+        )
+
+        if not skip_graph:
+            await builder.build_concept_cooccurrence(paper.arxiv_id)
+
+        await _mark_processed(session, paper.arxiv_id)
+        await session.commit()
+
+    return concepts_created, edges_created
+
+
+# ---------------------------------------------------------------------------
+# Extraction loops
+# ---------------------------------------------------------------------------
+
+async def _run_ollama_concurrent(
+    paper_rows: list[Paper],
+    skip_graph: bool,
+    concurrency: int,
+) -> tuple[int, int, int]:
+    """Process papers concurrently with asyncio.gather + Semaphore.
+
+    Returns (papers_processed, total_concepts, total_edges).
+    """
+    extractor = get_extractor("ollama")
+    semaphore = asyncio.Semaphore(concurrency)
+
+    papers_done = 0
+    total_concepts = 0
+    total_edges = 0
+    total = len(paper_rows)
+    start_t = time.monotonic()
+
+    async def process_one(paper: Paper) -> None:
+        nonlocal papers_done, total_concepts, total_edges
+
+        async with semaphore:
+            result = await extractor.extract(paper)
+            c, e = await _build_and_mark(paper, result, skip_graph)
+
+        # Update counters (safe: async is single-threaded, no await between reads)
+        papers_done += 1
+        total_concepts += c
+        total_edges += e
+
+        if papers_done % 500 == 0 or papers_done == total:
+            elapsed = time.monotonic() - start_t
+            rate = papers_done / elapsed
+            remaining_min = (total - papers_done) / rate / 60 if rate > 0 else 0
+            pct = papers_done / total * 100
+            print(
+                f"  [{papers_done:,} / {total:,}] processed ({pct:.1f}%) — "
+                f"{elapsed/60:.1f} min elapsed, ~{remaining_min:.0f} min remaining"
+            )
+
+    await asyncio.gather(*[process_one(p) for p in paper_rows])
+    return papers_done, total_concepts, total_edges
+
+
+async def _run_anthropic_batch(
+    paper_rows: list[Paper],
+    backend: str,
+    skip_graph: bool,
+) -> tuple[int, int, int]:
+    """Submit all papers to Anthropic Batch API, then write results to the graph.
+
+    Returns (papers_processed, total_concepts, total_edges).
+    """
+    extractor = get_extractor(backend)
+    print(f"  Submitting {len(paper_rows):,} papers to Anthropic Batch API…")
+    results_map = await extractor.extract_batch(paper_rows)
+
+    papers_done = 0
+    total_concepts = 0
+    total_edges = 0
+    total = len(paper_rows)
+
+    for paper in paper_rows:
+        result = results_map.get(
+            paper.arxiv_id,
+            EntityExtractionResult(arxiv_id=paper.arxiv_id, concepts=[], methods=[], datasets=[]),
+        )
+        c, e = await _build_and_mark(paper, result, skip_graph)
+        papers_done += 1
+        total_concepts += c
+        total_edges += e
+
+        if papers_done % 500 == 0 or papers_done == total:
+            print(f"  [{papers_done:,} / {total:,}] graph writes complete")
+
+    return papers_done, total_concepts, total_edges
+
+
+# ---------------------------------------------------------------------------
+# Main pipeline
+# ---------------------------------------------------------------------------
 
 async def _run(
     skip_extraction: bool = False,
     skip_graph: bool = False,
     skip_analysis: bool = False,
     skip_prediction: bool = False,
+    limit: int | None = None,
+    concurrency: int = 1,
+    backend: str = "ollama",
 ) -> None:
     print(f"\n{'='*60}")
     print("Graph + Prediction Pipeline")
     print(f"Topic context: {_TOPIC_CONTEXT}")
+    print(f"Backend: {backend}  |  Concurrency: {concurrency}")
     print(f"{'='*60}\n")
 
-    # ── Step 1 & 2: Entity extraction + graph building ────────────────────
+    # ── Step 1: Entity extraction + graph building ─────────────────────────
+    signals: list = []
+
     if skip_extraction:
         print("[1/4] Skipped (--skip-extraction)")
         papers_processed = total_concepts = total_edges = 0
     else:
-        print("[1/4] Running EntityExtractor + RelationBuilder…")
+        print("[1/4] Running entity extraction + RelationBuilder…")
 
-        extractor = EntityExtractor(
-            ollama_url=settings.ollama_url,
-            model=settings.ollama_model,
-            timeout=settings.ollama_request_timeout_seconds,
-        )
+        paper_rows = await _get_unprocessed_papers(limit)
 
-        async with AsyncSessionLocal() as session:
-            paper_rows = await extractor.get_unprocessed_papers(session)
+        if not paper_rows:
+            print("      → No unprocessed papers found. Exiting.")
+            return
 
-        papers_processed = 0
-        total_concepts = 0
-        total_edges = 0
+        print(f"      → {len(paper_rows):,} unprocessed papers queued\n")
 
-        async with AsyncSessionLocal() as session:
-            builder = RelationBuilder(session)
-            await builder.setup()
+        is_anthropic = backend in ("anthropic-haiku", "anthropic-sonnet")
 
-            for paper in paper_rows:
-                # Load authors for this paper from DB
-                author_rows = (
-                    await session.execute(
-                        text(
-                            "SELECT author_id, author_name FROM paper_authors"
-                            " WHERE paper_id = :arxiv_id"
-                        ).bindparams(arxiv_id=paper.arxiv_id)
-                    )
-                ).all()
-                authors: list[tuple[str, str]] = [(r[0], r[1]) for r in author_rows]
+        if is_anthropic:
+            papers_processed, total_concepts, total_edges = await _run_anthropic_batch(
+                paper_rows, backend, skip_graph
+            )
+        else:
+            papers_processed, total_concepts, total_edges = await _run_ollama_concurrent(
+                paper_rows, skip_graph, concurrency
+            )
 
-                year: int | None = None
-                try:
-                    year = paper.published_at.year
-                except Exception:
-                    pass
-
-                result = await extractor.extract(paper.arxiv_id, paper.title, paper.abstract)
-
-                concepts_created, edges_created = await builder.build_for_paper(
-                    arxiv_id=paper.arxiv_id,
-                    title=paper.title,
-                    year=year,
-                    authors=authors,
-                    result=result,
-                )
-
-                if not skip_graph:
-                    await builder.build_concept_cooccurrence(paper.arxiv_id)
-
-                await extractor.mark_processed(session, paper)
-
-                papers_processed += 1
-                total_concepts += concepts_created
-                total_edges += edges_created
-
-            await session.commit()
-
-    print(f"      → {papers_processed} papers, {total_concepts} concepts, {total_edges} edges\n")
+    print(f"\n      → {papers_processed} papers, {total_concepts} concepts, {total_edges} edges\n")
 
     # ── Step 2: Graph analysis (bridge nodes + velocity) ──────────────────
-    signals: list = []
     if skip_analysis:
         print("[2/4] Skipped (--skip-analysis)")
     else:
@@ -216,17 +352,30 @@ async def _run(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run the graph + prediction pipeline")
     parser.add_argument("--skip-extraction", action="store_true",
-                        help="Skip Ollama entity extraction + relation building")
+                        help="Skip entity extraction + relation building")
     parser.add_argument("--skip-graph", action="store_true",
                         help="Skip CO_OCCURS_WITH edge building")
     parser.add_argument("--skip-analysis", action="store_true",
                         help="Skip BridgeNodeDetector + VelocityTracker")
     parser.add_argument("--skip-prediction", action="store_true",
                         help="Skip PredictionSynthesizer + ReportArchive")
+    parser.add_argument("--limit", type=int, default=None,
+                        help="Process at most N unprocessed papers (for benchmarking)")
+    parser.add_argument("--concurrency", type=int, default=1,
+                        help="Concurrent Ollama calls (default: 1). Ignored for Anthropic backends.")
+    parser.add_argument("--backend", type=str, default=None,
+                        help="LLM backend override: ollama | anthropic-haiku | anthropic-sonnet "
+                             "(default: EXTRACTION_BACKEND from config)")
     args = parser.parse_args()
+
+    effective_backend = args.backend or settings.extraction_backend
+
     asyncio.run(_run(
         skip_extraction=args.skip_extraction,
         skip_graph=args.skip_graph,
         skip_analysis=args.skip_analysis,
         skip_prediction=args.skip_prediction,
+        limit=args.limit,
+        concurrency=args.concurrency,
+        backend=effective_backend,
     ))
