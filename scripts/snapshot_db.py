@@ -3,7 +3,7 @@
 Usage:
     uv run python scripts/snapshot_db.py
 
-Saves to snapshots/YYYYMMDD_HHMMSS.sql
+Saves to /Volumes/MyProjects/Backup/research-trend-tracker/YYYYMMDD_HHMMSS.sql
 """
 from __future__ import annotations
 
@@ -29,8 +29,8 @@ _KEYWORD_COUNTS_CONDITION = (
 
 
 def main() -> None:
-    snapshots_dir = Path(__file__).parent.parent / "snapshots"
-    snapshots_dir.mkdir(exist_ok=True)
+    snapshots_dir = Path("/Volumes/MyProjects/Backup/research-trend-tracker")
+    snapshots_dir.mkdir(parents=True, exist_ok=True)
 
     timestamp = datetime.now(UTC).strftime("%Y%m%d_%H%M%S")
     output_file = snapshots_dir / f"{timestamp}.sql"

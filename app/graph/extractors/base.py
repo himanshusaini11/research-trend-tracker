@@ -115,5 +115,6 @@ class BaseEntityExtractor(ABC):
 
 def _coerce_list(value: object) -> list[str]:
     if isinstance(value, list):
-        return [str(v) for v in value if v]
+        # Strip surrogate characters — asyncpg rejects them as invalid UTF-8
+        return [str(v).encode("utf-8", "ignore").decode("utf-8") for v in value if v]
     return []

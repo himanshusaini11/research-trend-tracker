@@ -19,17 +19,28 @@ from app.graph.schemas import VelocityResult
 
 log = get_logger(__name__)
 
+_STOPWORDS = {
+    "a", "an", "the", "of", "for", "in", "on", "with",
+    "and", "or", "to", "from", "by", "as", "via", "using",
+}
+
 _WEEKLY_COUNTS_SQL = """
 SELECT
     date_trunc('week', window_date) AS week,
     SUM(count) AS weekly_count
 FROM keyword_counts
-WHERE keyword = :concept_name
+WHERE keyword = ANY(:tokens)
 GROUP BY week
 ORDER BY week ASC;
 """
 
 VelocityTrend = Literal["accelerating", "decelerating", "stable"]
+
+
+def _concept_to_tokens(concept_name: str) -> list[str]:
+    """Split a Title Case concept phrase into lowercase tokens, dropping stopwords."""
+    tokens = concept_name.lower().split()
+    return [t for t in tokens if t not in _STOPWORDS and len(t) > 2]
 
 
 def _classify_trend(velocities: list[float]) -> VelocityTrend:
@@ -67,9 +78,12 @@ class VelocityTracker:
         rows_to_upsert = []
 
         for concept_name in concept_names:
+            tokens = _concept_to_tokens(concept_name)
+            if not tokens:
+                tokens = [concept_name.lower()]
             weekly_rows = (
                 await session.execute(
-                    text(_WEEKLY_COUNTS_SQL).bindparams(concept_name=concept_name)
+                    text(_WEEKLY_COUNTS_SQL).bindparams(tokens=tokens)
                 )
             ).all()
 

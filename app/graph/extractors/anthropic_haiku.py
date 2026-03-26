@@ -24,6 +24,8 @@ log = get_logger(__name__)
 
 # Anthropic Batch API limit: 100,000 requests per batch
 _BATCH_CHUNK_SIZE = 10_000
+# Max concurrent batch jobs in flight (Anthropic concurrent-batch limit)
+_SUBMIT_CONCURRENCY = 5
 
 
 class AnthropicHaikuExtractor(BaseEntityExtractor):
@@ -85,44 +87,61 @@ class AnthropicHaikuExtractor(BaseEntityExtractor):
             for i in range(0, len(papers), _BATCH_CHUNK_SIZE)
         ]
 
+        all_results: dict[str, EntityExtractionResult] = {}
+        total_chunks = len(chunks)
+
         async with self._client() as client:
-            # Submit all chunks sequentially — each is a large HTTP payload
-            batch_infos: list[tuple[str, dict[str, str]]] = []
-            for i, chunk in enumerate(chunks, 1):
-                id_map = {self._sanitize_id(p.arxiv_id): p.arxiv_id for p in chunk}
-                requests = [
-                    {
-                        "custom_id": self._sanitize_id(paper.arxiv_id),
-                        "params": {
-                            "model": self._model,
-                            "max_tokens": self._max_tokens,
-                            "system": SYSTEM_PROMPT,
-                            "messages": [
-                                {"role": "user", "content": build_user_prompt(paper)}
-                            ],
-                        },
-                    }
-                    for paper in chunk
-                ]
-                batch = await client.messages.batches.create(requests=requests)  # type: ignore[arg-type]
-                batch_infos.append((batch.id, id_map))
+            # Process in groups of _SUBMIT_CONCURRENCY to stay within Anthropic's
+            # concurrent-batch limit. Within each group: submit sequentially
+            # (large payloads), then poll in parallel.
+            for group_start in range(0, total_chunks, _SUBMIT_CONCURRENCY):
+                group = chunks[group_start: group_start + _SUBMIT_CONCURRENCY]
+
+                batch_infos: list[tuple[str, dict[str, str]]] = []
+                for chunk in group:
+                    chunk_num = group_start + len(batch_infos) + 1
+                    id_map = {self._sanitize_id(p.arxiv_id): p.arxiv_id for p in chunk}
+                    requests = [
+                        {
+                            "custom_id": self._sanitize_id(paper.arxiv_id),
+                            "params": {
+                                "model": self._model,
+                                "max_tokens": self._max_tokens,
+                                "system": SYSTEM_PROMPT,
+                                "messages": [
+                                    {"role": "user", "content": build_user_prompt(paper)}
+                                ],
+                            },
+                        }
+                        for paper in chunk
+                    ]
+                    batch = await client.messages.batches.create(requests=requests)  # type: ignore[arg-type]
+                    batch_infos.append((batch.id, id_map))
+                    log.info(
+                        "anthropic_batch_submitted",
+                        model=self._model,
+                        batch_id=batch.id,
+                        chunk=chunk_num,
+                        total_chunks=total_chunks,
+                        papers=len(chunk),
+                    )
+
+                # Wait for this group to fully complete before submitting next group
+                results_list = await asyncio.gather(
+                    *[
+                        self._poll_batch(client, batch_id, id_map)
+                        for batch_id, id_map in batch_infos
+                    ]
+                )
+                for r in results_list:
+                    all_results.update(r)
                 log.info(
-                    "anthropic_batch_submitted",
-                    model=self._model,
-                    batch_id=batch.id,
-                    chunk=i,
-                    total_chunks=len(chunks),
-                    papers=len(chunk),
+                    "anthropic_batch_group_complete",
+                    group_start=group_start + 1,
+                    group_end=group_start + len(group),
+                    total_results=len(all_results),
                 )
 
-            # Poll all batches in parallel — one coroutine per batch
-            results_list = await asyncio.gather(
-                *[self._poll_batch(client, batch_id, id_map) for batch_id, id_map in batch_infos]
-            )
-
-        all_results: dict[str, EntityExtractionResult] = {}
-        for r in results_list:
-            all_results.update(r)
         return all_results
 
     @staticmethod
