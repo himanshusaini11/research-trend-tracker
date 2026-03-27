@@ -83,6 +83,9 @@ class BaseEntityExtractor(ABC):
         """
         text = raw_json.strip()
 
+        # Strip <think>...</think> blocks (qwen3, deepseek-r1 reasoning models)
+        text = re.sub(r"<think>[\s\S]*?</think>", "", text, flags=re.IGNORECASE).strip()
+
         # Strip markdown fences if the model wrapped the JSON
         if text.startswith("```"):
             text = re.sub(r"^```(?:json)?\s*", "", text)

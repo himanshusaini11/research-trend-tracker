@@ -117,7 +117,7 @@ class PredictionSynthesizer:
                         "model": self._model,
                         "prompt": prompt,
                         "stream": False,
-                        "format": "json",
+                        "think": False,  # disable reasoning/thinking mode (qwen3, deepseek-r1, etc.)
                         "system": _SYSTEM_PROMPT,
                     },
                 )
