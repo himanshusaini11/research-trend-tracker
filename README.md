@@ -6,13 +6,15 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![Apache AGE](https://img.shields.io/badge/Apache_AGE-graph-F57F17?style=flat-square)
-![Coverage](https://img.shields.io/badge/coverage-85%25+-brightgreen?style=flat-square)
+![Vue 3](https://img.shields.io/badge/Vue-3.x-42b883?style=flat-square&logo=vue.js&logoColor=white)
+![Coverage](https://img.shields.io/badge/coverage-86%25+-brightgreen?style=flat-square)
 
 ---
 
 ## Validated Prediction Results
 
-**Dataset:** 889 arXiv papers, cs.CL + cs.AI, Oct–Dec 2024
+**Dataset:** 889 arXiv papers, cs.CL + cs.AI, Oct–Dec 2024 (initial validation run)
+**Updated pipeline:** 144,997 papers · 9 categories · 2022–2024
 **Validated:** March 2026 (3 months after dataset cutoff)
 
 | Prediction | Result | Notes |
@@ -69,17 +71,32 @@ Semantic Scholar API ──► Postgres/TimescaleDB
 
 ---
 
-## What's New in v2.0
+## What's New
 
+**v2.2.0 — Data Pipeline Stabilization**
+- **144,997 papers ingested** (2022–2024, 9 categories) — full production dataset
+- **2.6M graph edges** — 564K MENTIONS + 252K USES_METHOD + 1.77M CO_OCCURS_WITH
+- **Idempotent extraction** — `graph_processed_at` checkpoint; safe to re-run
+- **Pluggable LLM backends** — Ollama / Claude Haiku / Claude Sonnet (select with `--backend`)
+- **Token-based velocity matching** — bridges LLM Title Case phrases ↔ TF-IDF unigrams
+- **Unicode surrogate fix** — LLM-generated surrogates stripped before asyncpg insert
+
+**v2.1.0 — Vue 3 + D3.js Frontend**
+- **Interactive knowledge graph** — D3 Canvas renderer, 200 concept nodes, zoom/pan/click
+- **Split-view layout** — graph (70%) + concept detail panel (30%) with Ollama AI chat
+- **Velocity chart** — D3 bar charts with hover tooltips, sortable concept signals table
+- **Prediction viewer** — confidence badges (green/yellow/red), archive timeline
+- **Stats banner** — 145K papers · 200 concepts · 1.77M edges · 2022–2024
+
+**v2.0.0 — Knowledge Graph + Prediction Engine**
 - **Knowledge graph** — Apache AGE (openCypher on Postgres); no new containers
 - **Entity extraction** — Ollama extracts concepts and methods from paper abstracts
 - **Citation graph** — Semantic Scholar API adds CITES edges between papers
-- **Bridge node detection** — networkx approximate betweenness centrality (k=100) identifies concept bridges
+- **Bridge node detection** — networkx approximate betweenness centrality (k=100)
 - **Velocity tracking** — TimescaleDB tracks citation acceleration over rolling windows
-- **Prediction synthesis** — LLM synthesizes structured reports from graph signals (not raw data)
+- **Prediction synthesis** — LLM synthesizes structured reports from graph signals
 - **Report validation** — `scripts/validate_prediction.py` records prediction accuracy
-- **3 new MCP tools** — `query_knowledge_graph`, `get_prediction_report` added alongside v1 tools
-- **Streamlit graph tabs** — Knowledge Graph (pyvis), Prediction Report, Velocity Chart
+- **5 MCP tools** — `query_knowledge_graph`, `get_prediction_report` added alongside v1 tools
 
 ---
 
@@ -96,6 +113,9 @@ Semantic Scholar API ──► Postgres/TimescaleDB
 | Graph DB | Apache AGE | 1.6.0-rc0 | openCypher extension on Postgres |
 | Graph lib | networkx | ≥3.0 | betweenness centrality for bridge nodes |
 | Graph viz | pyvis | ≥0.3.2 | Interactive HTML graph in Streamlit |
+| Frontend | Vue 3 + Vite | 3.x / 5.x | D3.js Canvas force graph, TailwindCSS |
+| Visualization | D3.js | 7.x | Canvas force graph, interactive bar charts |
+| LLM API | Anthropic SDK | latest | Batch API for large-scale entity extraction |
 | Cache | Redis | 7-alpine | Token Bucket rate limiting |
 | LLM | Ollama (llama3.2) | — | Local, no cloud API required |
 | LLM client | LangChain + langchain-ollama | ≥1.2 / 1.0 | Stateless chain, per-request instance |
@@ -146,13 +166,19 @@ uv run python scripts/backfill_historical.py \
 # 4. Build knowledge graph + generate prediction report
 uv run python scripts/run_graph_pipeline.py
 
-# 5. Launch dashboard
+# 5. Launch Streamlit dashboard
 uv run streamlit run scripts/dashboard.py
 # http://localhost:8501 — no token entry required
+
+# 6. Start the Vue frontend (dev)
+cd frontend && npm install && npm run dev
+# http://localhost:5173
+# Login with any username/password after generating a JWT:
+# uv run python -c "from app.core.security import create_access_token; print(create_access_token({'sub':'demo'}))"
 ```
 
 ```bash
-# Start the API (optional — dashboard uses it for v1 analytics)
+# Start the API (optional — both dashboards use it)
 uv run uvicorn app.main:app --reload
 # http://localhost:8000/docs
 ```
@@ -234,17 +260,26 @@ research-trend-tracker/
 │   ├── analytics/          # TrendAggregator, TrendScorer, TopicClusterer, VelocityTracker
 │   ├── summarizer/         # LangChain + Ollama chain
 │   ├── mcp_server/         # FastMCP server + 5 tools
-│   └── graph/              # v2: EntityExtractor, RelationBuilder, BridgeNodeDetector,
-│                           #     GraphAnalyzer, PredictionSynthesizer, ReportArchive
+│   └── graph/              # EntityExtractor, RelationBuilder, BridgeNodeDetector,
+│       └── extractors/     #   GraphAnalyzer, PredictionSynthesizer, ReportArchive
+│                           #   pluggable backends: Ollama / AnthropicHaiku / AnthropicSonnet
+├── frontend/               # Vue 3 + Vite + TailwindCSS + D3.js
+│   └── src/
+│       ├── views/          # Login, Dashboard, KnowledgeGraph, PredictionReport, VelocityChart
+│       ├── components/     # GraphPanel (D3 Canvas), ConceptChat (Ollama), NavBar, TrendBar…
+│       ├── stores/         # auth.js, graph.js (Pinia)
+│       └── services/       # api.js (Axios)
 ├── airflow/dags/           # arxiv_ingestion_dag.py
 ├── alembic/versions/       # 7 migrations, including AGE extension + v2 tables
 ├── scripts/
 │   ├── backfill_historical.py   # Fetch arXiv date range + Semantic Scholar citations
 │   ├── run_graph_pipeline.py    # Entity extraction → graph build → predict → archive
+│   ├── build_cooccurrence.py    # Standalone CO_OCCURS_WITH edge builder (one-off)
+│   ├── snapshot_db.py           # pg_dump backup to Backup/ volume
 │   ├── validate_prediction.py   # Record prediction accuracy after the fact
 │   └── dashboard.py             # Streamlit dashboard (5 tabs)
 ├── tests/
-│   ├── unit/               # 9 test files, no DB/Redis
+│   ├── unit/               # No DB/Redis — mock all I/O
 │   └── integration/        # testcontainers Postgres + Redis
 └── infra/docker/           # Multi-stage Dockerfile + Dockerfile.postgres (AGE)
 ```
@@ -262,22 +297,26 @@ uv run pytest tests/ -v --cov=app --cov-report=term-missing
 
 ## Known Limitations
 
-- **Entity extraction quality** depends on Ollama model. `llama3.2` (3B) produces noisy concept names — duplicate concepts with minor casing differences (`large language models` vs `Large Language Models`) are common. A larger model or post-processing deduplication would improve graph quality.
-- **Semantic Scholar free tier** is capped at 100 req/5 min. For datasets >500 papers, use `--no-semantic` during backfill and add citation edges separately, or provide `SEMANTIC_SCHOLAR_API_KEY`.
-- **CO_OCCURS_WITH edges only** — concept similarity is based on co-occurrence in the same paper. Semantic similarity edges (via embeddings) are not yet implemented.
-- **No deduplication of concept nodes** — `Large Language Models` and `large language models` are separate nodes in the graph. String normalization planned for v3.
+- **Velocity signal uses token matching** — LLM extracts multi-word concepts ("Large Language Models") but `keyword_counts` stores TF-IDF unigrams ("learning", "models"). Token-based matching gives directional signal but loses phrase specificity. Phrase-level storage planned for v3.
+- **Concept deduplication pending** — `Large Language Models` and `large language models` are separate graph nodes. pgvector nearest-neighbour deduplication planned for v3.
+- **Semantic Scholar free tier** is capped at 100 req/5 min. For large datasets use `--no-semantic` during backfill, or provide `SEMANTIC_SCHOLAR_API_KEY`.
+- **Semantic Scholar enrichment pending** — CITES edges not yet built for the full 144K paper dataset. API key acquisition in progress.
 - **BERTopic clustering** not yet implemented. `app/analytics/topic_clusterer.py` uses a prefix heuristic. Planned for v3.
+- **CO_OCCURS_WITH build time** — building edges for 144,997 papers takes ~28 hours (500 papers/batch via AGE cypher). Pre-built in the v2.2.0 snapshot.
 
 ---
 
 ## Roadmap
 
-**v3 (planned)**
-- Vue 3 + D3.js frontend replacing Streamlit
+**v2.3.0 (planned)**
+- Semantic Scholar full enrichment (API key pending) — CITES edges for all 144K papers
+- pgvector concept deduplication — canonical concept nodes, merge near-duplicates
+- Phrase-level keyword storage — store LLM-extracted phrases alongside TF-IDF tokens for accurate velocity
+
+**v3.0 (planned)**
 - BERTopic semantic clustering for concept grouping
-- Concept node deduplication / canonicalization
-- Semantic Scholar full enrichment (all papers, not just recent)
 - Public hosted demo
+- Multi-user support with per-user topic tracking
 
 ---
 
