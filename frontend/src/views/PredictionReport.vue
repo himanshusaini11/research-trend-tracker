@@ -13,15 +13,18 @@
             Generated {{ fmtDate(latest.generated_at) }} · {{ latest.model_name }}
           </p>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 flex-wrap">
           <span
-            :class="confidenceClass(latest.report.overall_confidence)"
             class="px-2.5 py-0.5 rounded text-xs font-medium uppercase tracking-wide"
+            :style="confidenceBadgeStyle(latest.report.overall_confidence)"
           >
             {{ latest.report.overall_confidence }} confidence
           </span>
           <span class="text-text-muted text-xs">
             {{ latest.report.time_horizon_months }}mo horizon
+          </span>
+          <span v-if="latest.is_validated" class="text-accent-green text-xs font-medium">
+            ✓ Validated
           </span>
         </div>
       </div>
@@ -37,7 +40,7 @@
             :title="d.direction"
             :body="d.reasoning"
             :badge="d.confidence"
-            :badge-class="confidenceClass(d.confidence)"
+            :badge-style="confidenceBadgeStyle(d.confidence)"
           />
         </div>
 
@@ -73,7 +76,7 @@
                transition-colors flex items-center gap-2"
       >
         <span v-if="generating" class="animate-spin">⟳</span>
-        {{ generating ? 'Generating (Ollama may take 10–30s)…' : 'Generate New Report' }}
+        {{ generating ? 'Generating… (2–5 min)' : 'Generate New Report (2–5 min)' }}
       </button>
 
       <!-- Archive timeline -->
@@ -91,12 +94,12 @@
             </div>
             <div class="flex items-center gap-2">
               <span
-                :class="confidenceClass(r.report.overall_confidence)"
                 class="px-2 py-0.5 rounded text-xs font-medium"
+                :style="confidenceBadgeStyle(r.report.overall_confidence)"
               >
                 {{ r.report.overall_confidence }}
               </span>
-              <span v-if="r.is_validated" class="text-accent-green text-xs">validated</span>
+              <span v-if="r.is_validated" class="text-accent-green text-xs font-medium">✓</span>
             </div>
           </div>
         </div>
@@ -116,7 +119,7 @@ import { ref, onMounted } from 'vue'
 import PredictionCard from '../components/PredictionCard.vue'
 import api from '../services/api'
 
-const loading    = ref(false)
+const loading    = ref(true)   // true on mount so we show spinner, not empty state
 const generating = ref(false)
 const error      = ref(null)
 const archive    = ref([])
@@ -129,7 +132,10 @@ async function load() {
     archive.value = await api.getLatestPredictions('LLM/AI research Oct-Dec 2024', 5)
     latest.value  = archive.value[0] ?? null
   } catch (e) {
-    error.value = e.message
+    const status = e.response?.status
+    error.value = status === 401
+      ? 'Session expired — please log in again.'
+      : (e.message ?? 'Failed to load predictions.')
   } finally {
     loading.value = false
   }
@@ -154,12 +160,13 @@ function fmtDate(iso) {
   })
 }
 
-function confidenceClass(c) {
-  return {
-    high:   'bg-accent-green/20 text-accent-green',
-    medium: 'bg-accent-blue/20 text-accent-blue',
-    low:    'bg-accent-gray/20 text-accent-gray',
-  }[c] ?? 'bg-accent-gray/20 text-accent-gray'
+function confidenceBadgeStyle(c) {
+  const map = {
+    high:   { background: 'rgba(0,212,170,0.15)',   color: '#00d4aa' },
+    medium: { background: 'rgba(251,191,36,0.15)',  color: '#fbbf24' },
+    low:    { background: 'rgba(255,107,107,0.15)', color: '#ff6b6b' },
+  }
+  return map[c] ?? { background: 'rgba(100,116,139,0.15)', color: '#64748b' }
 }
 
 onMounted(load)

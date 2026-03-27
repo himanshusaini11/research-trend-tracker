@@ -10,6 +10,7 @@
         <span
           v-if="badge"
           :class="badgeClass"
+          :style="badgeStyle"
           class="text-xs px-1.5 py-0.5 rounded font-medium"
         >
           {{ badge }}
@@ -31,6 +32,7 @@ defineProps({
   body:       { type: String,  default: '' },
   badge:      { type: String,  default: '' },
   badgeClass: { type: String,  default: '' },
+  badgeStyle: { type: Object,  default: () => ({}) },
 })
 
 const open = ref(false)

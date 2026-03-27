@@ -25,6 +25,17 @@
         </div>
       </header>
 
+      <!-- Stats banner -->
+      <div class="bg-bg border-b border-border px-6 py-1.5 shrink-0 flex items-center gap-1.5 text-xs text-text-muted">
+        <span class="font-mono text-text-primary font-medium">145,000</span>&nbsp;papers
+        <span class="text-border mx-1">·</span>
+        <span class="font-mono text-text-primary font-medium">200</span>&nbsp;concepts
+        <span class="text-border mx-1">·</span>
+        <span class="font-mono text-text-primary font-medium">1.77M</span>&nbsp;graph edges
+        <span class="text-border mx-1">·</span>
+        <span>2022–2024</span>
+      </div>
+
       <!-- Router outlet -->
       <main class="flex-1 overflow-auto">
         <RouterView />
