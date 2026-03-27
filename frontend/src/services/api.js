@@ -14,10 +14,11 @@ client.interceptors.request.use((config) => {
 })
 
 export default {
-  async getTopConcepts(topN = 20, trendFilter = 'all') {
-    const { data } = await client.get('/graph/top-concepts', {
-      params: { top_n: topN, trend_filter: trendFilter },
-    })
+  async getTopConcepts(topN = 20, trendFilter = 'all', paperFrom = null, paperTo = null) {
+    const params = { top_n: topN, trend_filter: trendFilter }
+    if (paperFrom) params.paper_from = paperFrom
+    if (paperTo)   params.paper_to   = paperTo
+    const { data } = await client.get('/graph/top-concepts', { params })
     return data
   },
 
@@ -32,6 +33,16 @@ export default {
     const { data } = await client.post('/graph/predictions/generate', {
       topic_context: topicContext,
     })
+    return data
+  },
+
+  async getGraphStats() {
+    const { data } = await client.get('/graph/stats')
+    return data
+  },
+
+  async getGraphConcepts(limit = 200, offset = 0) {
+    const { data } = await client.get('/graph/concepts', { params: { limit, offset } })
     return data
   },
 }
