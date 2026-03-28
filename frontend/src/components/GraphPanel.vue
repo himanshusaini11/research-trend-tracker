@@ -12,7 +12,7 @@
       <div class="text-text-primary font-medium mb-1">{{ tooltip.name }}</div>
       <div class="text-text-muted">composite: <span class="text-text-primary font-mono">{{ tooltip.composite }}</span></div>
       <div class="text-text-muted">velocity: <span class="text-text-primary font-mono">{{ tooltip.velocity }}</span></div>
-      <div class="text-text-muted">trend: <span :style="{ color: TREND_COLOR[tooltip.trend] }">{{ tooltip.trend }}</span></div>
+      <div class="text-text-muted">trend: <span :style="{ color: tooltip.trendColor }">{{ tooltip.trend }}</span></div>
       <div class="text-text-muted/60 mt-1 text-[10px]">dbl-click to zoom</div>
     </div>
 
@@ -54,6 +54,9 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import * as d3 from 'd3'
 import api from '../services/api'
+import { useGraphState } from '../stores/graphState'
+
+const gState = useGraphState()
 
 const props = defineProps({
   concepts:    { type: Array,  default: () => [] },
@@ -76,10 +79,33 @@ const stats     = ref({
   lastRun:         null,
 })
 
-const TREND_COLOR = {
+// Canvas colors — populated from CSS variables at draw time via readCanvasColors()
+let CANVAS_COLORS = {
   accelerating: '#00d4aa',
   decelerating: '#ff6b6b',
   stable:       '#4a9eff',
+  default:      '#8892a4',
+  edge:         '#4a9eff',
+  label:        '#94a3b8',
+  tooltipBg:    '#1e1e2e',
+  tooltipBorder:'#4a9eff',
+  tooltipText:  '#e2e8f0',
+}
+
+function readCanvasColors() {
+  const s = getComputedStyle(document.documentElement)
+  const get = (v) => s.getPropertyValue(v).trim()
+  CANVAS_COLORS = {
+    accelerating:  get('--canvas-accelerating'),
+    decelerating:  get('--canvas-decelerating'),
+    stable:        get('--canvas-stable'),
+    default:       get('--canvas-default'),
+    edge:          get('--canvas-edge'),
+    label:         get('--canvas-label'),
+    tooltipBg:     get('--canvas-tooltip-bg'),
+    tooltipBorder: get('--canvas-tooltip-border'),
+    tooltipText:   get('--canvas-tooltip-text'),
+  }
 }
 
 // ── Mutable simulation state ───────────────────────────────────────────────
@@ -111,7 +137,7 @@ function toTitleCase(s) {
 }
 
 function nodeColor(d) {
-  return TREND_COLOR[d.trend] ?? '#8892a4'
+  return CANVAS_COLORS[d.trend] ?? CANVAS_COLORS.default
 }
 
 // Fix 4 — normalize by max score so range spans 5–40px meaningfully
@@ -174,15 +200,15 @@ function drawEdges() {
 
     if (srcConnected) {
       ctx.globalAlpha = 0.8
-      ctx.strokeStyle = '#ffffff'
+      ctx.strokeStyle = CANVAS_COLORS.edge
       ctx.lineWidth   = 1.5 / currentTransform.k
     } else if (selectedNodeId) {
       ctx.globalAlpha = 0.06
-      ctx.strokeStyle = '#4a9eff'
+      ctx.strokeStyle = CANVAS_COLORS.edge
       ctx.lineWidth   = 0.8 / currentTransform.k
     } else {
       ctx.globalAlpha = 0.3
-      ctx.strokeStyle = '#4a9eff'
+      ctx.strokeStyle = CANVAS_COLORS.edge
       ctx.lineWidth   = 0.8 / currentTransform.k
     }
 
@@ -257,7 +283,7 @@ function drawLabels() {
     if (selectedNodeId && !connectedIds.has(node.id) && selectedNodeId !== node.id) alpha = 0.15
 
     ctx.globalAlpha = alpha
-    ctx.fillStyle   = '#94a3b8'
+    ctx.fillStyle   = CANVAS_COLORS.label
     ctx.fillText(label, node.x, node.y + r + 13 / currentTransform.k)
   }
   ctx.globalAlpha = 1
@@ -288,6 +314,8 @@ function updateStats() {
 
 function buildGraph() {
   if (!canvas.value || !allLoadedConcepts.length) return
+
+  readCanvasColors()
 
   // Clear any in-flight batch timer
   if (batchTimer) { clearInterval(batchTimer); batchTimer = null }
@@ -400,6 +428,7 @@ function buildGraph() {
     .scaleExtent([0.1, 8])
     .on('zoom', (event) => {
       currentTransform = event.transform
+      gState.zoomTransform = { x: currentTransform.x, y: currentTransform.y, k: currentTransform.k }
       redraw()
     })
 
@@ -533,13 +562,14 @@ function onMouseMove(event) {
   }
   if (node) {
     tooltip.value = {
-      visible:   true,
-      x:         event.offsetX + 14,
-      y:         event.offsetY - 14,
-      name:      node.display,
-      composite: Number(node.composite_score).toFixed(3),
-      velocity:  Number(node.velocity).toFixed(3),
-      trend:     node.trend,
+      visible:      true,
+      x:            event.offsetX + 14,
+      y:            event.offsetY - 14,
+      name:         node.display,
+      composite:    Number(node.composite_score).toFixed(3),
+      velocity:     Number(node.velocity).toFixed(3),
+      trend:        node.trend,
+      trendColor:   CANVAS_COLORS[node.trend] ?? CANVAS_COLORS.default,
     }
   } else {
     tooltip.value.visible = false
@@ -579,6 +609,7 @@ function onDblClick(event) {
 function resetZoom() {
   if (canvasSel && zoomBehavior) {
     canvasSel.transition().duration(400).call(zoomBehavior.transform, d3.zoomIdentity)
+    gState.zoomTransform = { x: 0, y: 0, k: 1 }
   }
 }
 
@@ -609,11 +640,24 @@ watch(() => props.focusNodeId, (id) => {
   redraw()
 })
 
+function onThemeChange() {
+  readCanvasColors()
+  redraw()
+}
+
 onMounted(() => {
+  window.addEventListener('rtt-theme-change', onThemeChange)
   allLoadedConcepts = [...props.concepts]
   buildGraph()
   if (props.nodeCount > allLoadedConcepts.length) {
     onNodeCountChange(props.nodeCount)
+  }
+  // Restore saved zoom transform (persists across navigation)
+  const saved = gState.zoomTransform
+  if (saved && (saved.x !== 0 || saved.y !== 0 || saved.k !== 1)) {
+    const t = d3.zoomIdentity.translate(saved.x, saved.y).scale(saved.k)
+    currentTransform = t
+    if (canvasSel && zoomBehavior) canvasSel.call(zoomBehavior.transform, t)
   }
 
   api.getGraphStats().then(s => {
@@ -649,6 +693,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  window.removeEventListener('rtt-theme-change', onThemeChange)
   if (simulation)  simulation.stop()
   if (ro)          ro.disconnect()
   if (batchTimer)  clearInterval(batchTimer)

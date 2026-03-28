@@ -155,7 +155,7 @@ async def generate_prediction(
     )
     signals = await analyzer.analyze(db)
 
-    synthesizer = PredictionSynthesizer()
+    synthesizer = PredictionSynthesizer(model=settings.ollama_predict_model)
     report = await synthesizer.synthesize(signals, topic_context=body.topic_context)
 
     archive = ReportArchive()
@@ -164,7 +164,7 @@ async def generate_prediction(
         topic_context=body.topic_context,
         signals=signals,
         report=report,
-        model_name=settings.ollama_model,
+        model_name=settings.ollama_predict_model,
     )
 
     return GenerateResponse(id=str(report_id), report=report)

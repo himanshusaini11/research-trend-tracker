@@ -2,8 +2,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const routes = [
-  { path: '/', redirect: '/dashboard/graph' },
   {
+    path: '/',
+    component: () => import('../views/LandingPage.vue'),
+  },
+  {
+    // Legacy token-paste login kept for developer use
     path: '/login',
     component: () => import('../views/Login.vue'),
   },
@@ -12,10 +16,12 @@ const routes = [
     component: () => import('../views/Dashboard.vue'),
     meta: { requiresAuth: true },
     children: [
-      { path: '', redirect: '/dashboard/graph' },
+      { path: '',            redirect: '/dashboard/graph' },
       { path: 'graph',       component: () => import('../views/KnowledgeGraph.vue') },
       { path: 'predictions', component: () => import('../views/PredictionReport.vue') },
       { path: 'velocity',    component: () => import('../views/VelocityChart.vue') },
+      { path: 'admin',       component: () => import('../views/AdminPanel.vue'),  meta: { requiresAdmin: true } },
+      { path: 'upload',      component: () => import('../views/UploadView.vue') },
     ],
   },
 ]
@@ -28,7 +34,9 @@ const router = createRouter({
 router.beforeEach((to, _from, next) => {
   const auth = useAuthStore()
   if (to.meta.requiresAuth && !auth.isValid) {
-    next('/login')
+    next('/')
+  } else if (to.meta.requiresAdmin && !auth.isAdmin) {
+    next('/dashboard/graph')
   } else {
     next()
   }

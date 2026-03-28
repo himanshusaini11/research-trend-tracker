@@ -7,22 +7,81 @@
   box-sizing: border-box;
 }
 
+/* ── Theme tokens — channel format so Tailwind opacity modifiers work ── */
+
+/* Light theme — default (no data-theme or data-theme="light") */
+:root {
+  --color-bg:           248 250 252;
+  --color-surface:      255 255 255;
+  --color-border:       226 232 240;
+  --color-accent-blue:  37 99 235;
+  --color-accent-green: 5 150 105;
+  --color-accent-red:   220 38 38;
+  --color-accent-gray:  100 116 139;
+  --color-text-primary: 15 23 42;
+  --color-text-muted:   100 116 139;
+
+  /* Canvas / D3 colors (used in JS via getComputedStyle) */
+  --canvas-accelerating:  #059669;
+  --canvas-decelerating:  #dc2626;
+  --canvas-stable:        #2563eb;
+  --canvas-default:       #6b7280;
+  --canvas-edge:          #93c5fd;
+  --canvas-label:         #475569;
+  --canvas-tooltip-bg:    #f1f5f9;
+  --canvas-tooltip-border:#2563eb;
+  --canvas-tooltip-text:  #1e293b;
+
+  /* Semantic badge colors */
+  --badge-high-bg:    rgba(5, 150, 105, 0.15);
+  --badge-high-text:  #059669;
+  --badge-medium-bg:  rgba(217, 119, 6, 0.15);
+  --badge-medium-text:#d97706;
+  --badge-low-bg:     rgba(220, 38, 38, 0.15);
+  --badge-low-text:   #dc2626;
+  --badge-muted-bg:   rgba(100, 116, 139, 0.15);
+  --badge-muted-text: #64748b;
+}
+
+/* Dark theme — overrides :root when data-theme="dark" is set on <html> */
+[data-theme="dark"] {
+  --color-bg:           10 10 15;
+  --color-surface:      18 18 26;
+  --color-border:       30 30 46;
+  --color-accent-blue:  74 158 255;
+  --color-accent-green: 0 212 170;
+  --color-accent-red:   255 107 107;
+  --color-accent-gray:  136 146 164;
+  --color-text-primary: 226 232 240;
+  --color-text-muted:   100 116 139;
+
+  --canvas-accelerating:  #00d4aa;
+  --canvas-decelerating:  #ff6b6b;
+  --canvas-stable:        #4a9eff;
+  --canvas-default:       #8892a4;
+  --canvas-edge:          #4a9eff;
+  --canvas-label:         #94a3b8;
+  --canvas-tooltip-bg:    #1e1e2e;
+  --canvas-tooltip-border:#4a9eff;
+  --canvas-tooltip-text:  #e2e8f0;
+
+  --badge-high-bg:    rgba(0, 212, 170, 0.15);
+  --badge-high-text:  #00d4aa;
+  --badge-medium-bg:  rgba(251, 191, 36, 0.15);
+  --badge-medium-text:#fbbf24;
+  --badge-low-bg:     rgba(255, 107, 107, 0.15);
+  --badge-low-text:   #ff6b6b;
+  --badge-muted-bg:   rgba(100, 116, 139, 0.15);
+  --badge-muted-text: #64748b;
+}
+
 body {
-  background-color: #0a0a0f;
-  color: #e2e8f0;
+  background-color: rgb(var(--color-bg));
+  color: rgb(var(--color-text-primary));
   margin: 0;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #12121a;
-}
-::-webkit-scrollbar-thumb {
-  background: #1e1e2e;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #4a9eff44;
-}
+::-webkit-scrollbar       { width: 6px; }
+::-webkit-scrollbar-track { background: rgb(var(--color-surface)); }
+::-webkit-scrollbar-thumb { background: rgb(var(--color-border)); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgb(var(--color-accent-blue) / 0.27); }

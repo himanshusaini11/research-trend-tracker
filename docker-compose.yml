@@ -34,6 +34,34 @@ services:
     env_file: .env
     ports:
       - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  rtt-celery-worker:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    env_file: .env
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  rtt-celery-beat:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+    command: celery -A app.celery_app beat --loglevel=info
+    env_file: .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -71,3 +99,4 @@ services:
 volumes:
   postgres_data:
   ollama_data:
+  uploads_data:

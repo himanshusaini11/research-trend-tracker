@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import Depends, HTTPException, Security, status
+from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 
 from redis.asyncio import Redis
@@ -63,28 +63,44 @@ async def verify_api_key(
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Security(_bearer),
     api_key: str | None = Security(_api_key_header),
 ) -> dict[str, Any]:
-    """Accept either a valid JWT bearer token or a valid API key."""
+    """Accept either a valid JWT bearer token or a valid API key.
+
+    Tokens with ``role='demo'`` are valid only for GET requests.
+    """
+    payload: dict[str, Any] | None = None
+
     if credentials is not None:
         try:
-            return verify_token(credentials.credentials)
+            payload = verify_token(credentials.credentials)
         except AuthenticationError:
             pass
 
-    if api_key is not None:
+    if payload is None and api_key is not None:
         from app.core.security import verify_api_key as _check
 
         expected = getattr(settings, "api_key", None)
         if expected and _check(api_key, expected):
-            return {"sub": "api_key", "key": api_key}
+            payload = {"sub": "api_key", "key": api_key}
 
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Not authenticated — provide a bearer token or API key",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+    if payload is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated — provide a bearer token or API key",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Demo tokens are read-only
+    if payload.get("role") == "demo" and request.method != "GET":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Demo account is read-only",
+        )
+
+    return payload
 
 
 # ---------------------------------------------------------------------------

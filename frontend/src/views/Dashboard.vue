@@ -16,11 +16,15 @@
           <span class="text-text-muted text-xs">
             {{ auth.isValid ? `Expires ${expiryLabel}` : 'Token expired' }}
           </span>
+          <span v-if="auth.isDemo"
+            class="text-xs px-2 py-0.5 rounded border border-border text-text-muted">
+            demo
+          </span>
           <button
             @click="logout"
             class="text-text-muted text-xs hover:text-accent-red transition-colors"
           >
-            Disconnect
+            Sign out
           </button>
         </div>
       </header>
@@ -58,6 +62,8 @@ const titles = {
   '/dashboard/graph':       'Knowledge Graph',
   '/dashboard/predictions': 'Prediction Report',
   '/dashboard/velocity':    'Velocity Chart',
+  '/dashboard/upload':      'Upload Papers',
+  '/dashboard/admin':       'Admin Panel',
 }
 
 const currentTitle = computed(() => titles[route.path] ?? 'Research Trend Tracker')
@@ -68,7 +74,6 @@ const expiryLabel = computed(() => {
 })
 
 function logout() {
-  auth.clear()
-  router.push('/login')
+  auth.logout(router)
 }
 </script>

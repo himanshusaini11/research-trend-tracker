@@ -167,6 +167,123 @@ class PaperAuthor(Base):
     )
 
 
+class User(Base):
+    """Registered user for email/password authentication."""
+
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+    last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("false"))
+    lifetime_uploads: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+
+    __table_args__ = (Index("ix_users_email", "email"),)
+
+
+UserPaperStatus = Literal["pending", "processing", "processed", "failed"]
+
+
+class UserPaper(Base):
+    """Raw PDF uploaded by a user — deleted from volume after successful processing."""
+
+    __tablename__ = "user_papers"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    upload_path: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[UserPaperStatus] = mapped_column(String(16), nullable=False, default="pending")
+    concept_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        Index("ix_user_papers_user_id", "user_id"),
+        Index("ix_user_papers_status", "status"),
+    )
+
+
+class UserConcept(Base):
+    """Concept extracted from a user's uploaded paper — scoped to user_id."""
+
+    __tablename__ = "user_concepts"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    concept: Mapped[str] = mapped_column(Text, nullable=False)
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("user_papers.id", ondelete="CASCADE"), nullable=False
+    )
+    weight: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+
+    __table_args__ = (
+        Index("ix_user_concepts_user_id", "user_id"),
+        Index("ix_user_concepts_paper_id", "paper_id"),
+    )
+
+
+class UserGraphEdge(Base):
+    """Co-occurrence edge between two concepts extracted from a user's papers."""
+
+    __tablename__ = "user_graph_edges"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    source_concept: Mapped[str] = mapped_column(Text, nullable=False)
+    target_concept: Mapped[str] = mapped_column(Text, nullable=False)
+    edge_type: Mapped[str] = mapped_column(String(64), nullable=False, default="CO_OCCURS_WITH")
+    weight: Mapped[float] = mapped_column(Float, nullable=False)
+
+    __table_args__ = (Index("ix_user_graph_edges_user_id", "user_id"),)
+
+
+UserJobStatus = Literal["pending", "processing", "complete", "failed"]
+
+
+class UserJob(Base):
+    """Processing job for a user-uploaded paper — tracks Celery task lifecycle."""
+
+    __tablename__ = "user_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    paper_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("user_papers.id", ondelete="CASCADE"), nullable=False
+    )
+    status: Mapped[UserJobStatus] = mapped_column(String(16), nullable=False, default="pending")
+    celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_user_jobs_user_id", "user_id"),
+        Index("ix_user_jobs_paper_id", "paper_id"),
+        Index("ix_user_jobs_status", "status"),
+    )
+
+
 class PredictionReportRow(Base):
     """Archived prediction reports generated by PredictionSynthesizer."""
 

@@ -73,6 +73,7 @@ class Settings(BaseSettings):
     # -------------------------------------------------------------------------
     ollama_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
+    ollama_predict_model: str = "llama3.2"   # fast model for prediction endpoints
     ollama_request_timeout_seconds: int = 120
 
     # -------------------------------------------------------------------------
@@ -113,6 +114,17 @@ class Settings(BaseSettings):
     rate_limit_requests: int = 60       # tokens per window
     rate_limit_window_seconds: int = 60  # refill window
     rate_limit_burst: int = 10          # max burst above steady rate
+
+    # -------------------------------------------------------------------------
+    # User paper uploads (Feature 4)
+    # -------------------------------------------------------------------------
+    upload_dir: str = "/app/uploads"
+    max_upload_size_mb: int = 20
+    max_user_storage_mb: int = 100
+    max_user_files: int = 10
+    max_user_lifetime_uploads: int = 30
+    user_data_expiry_days: int = 30
+    storage_backend: str = "local"  # 'local' | 's3' (future)
 
 
 settings = Settings()  # type: ignore[call-arg]

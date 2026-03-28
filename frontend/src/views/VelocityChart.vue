@@ -1,77 +1,80 @@
 <template>
   <div ref="chartContainer" class="p-6">
+
+    <!-- Mode toggle -->
+    <div v-if="!auth.isDemo && auth.isValid" class="flex items-center gap-3 mb-6">
+      <div class="flex items-center border border-border rounded-lg overflow-hidden">
+        <button
+          v-for="tab in tabs" :key="tab.value"
+          @click="switchMode(tab.value)"
+          :class="[
+            'px-4 py-1.5 text-xs font-medium transition-colors',
+            vState.mode === tab.value ? 'bg-accent-blue text-bg' : 'text-text-muted hover:text-text-primary',
+          ]"
+        >{{ tab.label }}</button>
+      </div>
+      <span v-if="vState.mode === 'user'" class="text-text-muted text-xs">
+        Concept prominence from your {{ userPaperCount }} uploaded paper{{ userPaperCount !== 1 ? 's' : '' }}
+      </span>
+    </div>
+
     <div v-if="loading" class="text-text-muted text-sm py-12 text-center">Loading…</div>
     <div v-else-if="error" class="text-accent-red text-sm py-12 text-center">{{ error }}</div>
 
     <template v-else-if="concepts.length">
-      <!-- Velocity bar chart -->
+      <!-- Velocity / prominence bar chart -->
       <h3 class="text-text-muted text-xs uppercase tracking-wider mb-3">
-        Velocity (145K papers, 2022–2024) — Top 20
+        {{ vState.mode === 'global'
+          ? 'Velocity (145K papers, 2022–2024) — Top 20'
+          : 'Concept Prominence (your papers) — Top 20' }}
       </h3>
       <svg ref="velocitySvg" class="w-full mb-8" :height="chartHeight" />
 
       <!-- Composite score chart -->
       <h3 class="text-text-muted text-xs uppercase tracking-wider mb-3">
-        Composite Score — Top 20
+        {{ vState.mode === 'global' ? 'Composite Score — Top 20' : 'Coverage Score — Top 20' }}
       </h3>
       <svg ref="compositeSvg" class="w-full mb-8" :height="chartHeight" />
 
-      <!-- Sortable data table (Fix 3) -->
+      <!-- Sortable data table -->
       <h3 class="text-text-muted text-xs uppercase tracking-wider mb-3">All Concept Signals</h3>
       <div class="bg-surface border border-border rounded-lg overflow-hidden">
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-border">
-              <th
-                class="text-left text-text-muted px-4 py-2 font-medium cursor-pointer
-                       hover:text-text-primary select-none transition-colors"
-                @click="sortBy('concept_name')"
-              >
+              <th class="text-left text-text-muted px-4 py-2 font-medium cursor-pointer hover:text-text-primary select-none" @click="sortBy('concept_name')">
                 Concept {{ sortIndicator('concept_name') }}
               </th>
-              <th
-                class="text-right text-text-muted px-4 py-2 font-medium cursor-pointer
-                       hover:text-text-primary select-none transition-colors"
-                @click="sortBy('velocity')"
-              >
-                Velocity {{ sortIndicator('velocity') }}
+              <th class="text-right text-text-muted px-4 py-2 font-medium cursor-pointer hover:text-text-primary select-none" @click="sortBy('velocity')">
+                {{ vState.mode === 'global' ? 'Velocity' : 'Prominence' }} {{ sortIndicator('velocity') }}
               </th>
-              <th
-                class="text-right text-text-muted px-4 py-2 font-medium cursor-pointer
-                       hover:text-text-primary select-none transition-colors"
-                @click="sortBy('acceleration')"
-              >
-                Acceleration {{ sortIndicator('acceleration') }}
+              <th class="text-right text-text-muted px-4 py-2 font-medium cursor-pointer hover:text-text-primary select-none" @click="sortBy('acceleration')">
+                {{ vState.mode === 'global' ? 'Acceleration' : 'Coverage' }} {{ sortIndicator('acceleration') }}
               </th>
-              <th
-                class="text-right text-text-muted px-4 py-2 font-medium cursor-pointer
-                       hover:text-text-primary select-none transition-colors"
-                @click="sortBy('composite_score')"
-              >
+              <th class="text-right text-text-muted px-4 py-2 font-medium cursor-pointer hover:text-text-primary select-none" @click="sortBy('composite_score')">
                 Composite {{ sortIndicator('composite_score') }}
               </th>
-              <th class="text-right text-text-muted px-4 py-2 font-medium">Trend</th>
+              <th class="text-right text-text-muted px-4 py-2 font-medium">
+                {{ vState.mode === 'global' ? 'Trend' : 'Papers' }}
+              </th>
             </tr>
           </thead>
           <tbody>
-            <tr
-              v-for="c in sortedConcepts" :key="c.concept_name"
-              class="border-b border-border/50 hover:bg-bg/50 transition-colors"
-            >
+            <tr v-for="c in sortedConcepts" :key="c.concept_name"
+              class="border-b border-border/50 hover:bg-bg/50 transition-colors">
               <td class="px-4 py-2 text-text-primary">{{ c.concept_name }}</td>
               <td class="px-4 py-2 text-right font-mono"
-                :class="c.velocity >= 0 ? 'text-accent-green' : 'text-accent-red'"
-              >
+                :class="c.velocity >= 0 ? 'text-accent-green' : 'text-accent-red'">
                 {{ c.velocity >= 0 ? '+' : '' }}{{ c.velocity.toFixed(1) }}
               </td>
               <td class="px-4 py-2 text-right font-mono"
-                :class="c.acceleration >= 0 ? 'text-accent-green' : 'text-accent-red'"
-              >
+                :class="c.acceleration >= 0 ? 'text-accent-green' : 'text-accent-red'">
                 {{ c.acceleration >= 0 ? '+' : '' }}{{ c.acceleration.toFixed(1) }}
               </td>
               <td class="px-4 py-2 text-right text-text-primary font-mono">{{ c.composite_score.toFixed(2) }}</td>
               <td class="px-4 py-2 text-right">
-                <TrendBar :trend="c.trend" />
+                <span v-if="vState.mode === 'user'" class="text-text-muted text-xs">{{ c.weeks_of_data }}p</span>
+                <TrendBar v-else :trend="c.trend" />
               </td>
             </tr>
           </tbody>
@@ -79,6 +82,13 @@
       </div>
     </template>
 
+    <div v-else-if="vState.mode === 'user' && !loading" class="text-center py-12 space-y-3">
+      <p class="text-text-muted text-sm">No uploaded papers yet.</p>
+      <button @click="$router.push('/dashboard/upload')"
+        class="px-5 py-2 bg-accent-blue text-bg text-xs font-medium rounded-lg hover:bg-blue-400 transition-colors">
+        Upload Papers →
+      </button>
+    </div>
     <div v-else class="text-text-muted text-sm py-12 text-center">No data available.</div>
   </div>
 </template>
@@ -88,46 +98,51 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import * as d3 from 'd3'
 import TrendBar from '../components/TrendBar.vue'
 import api from '../services/api'
+import { useAuthStore } from '../stores/auth'
+import { useVelocityState } from '../stores/velocityState'
+
+const auth  = useAuthStore()
+const vState = useVelocityState()
+
+const tabs = [
+  { value: 'global', label: 'Global (145K papers)' },
+  { value: 'user',   label: 'My Papers' },
+]
 
 const loading        = ref(true)
 const error          = ref(null)
 const concepts       = ref([])
+const userPaperCount = ref(0)
 const chartContainer = ref(null)
 const velocitySvg    = ref(null)
 const compositeSvg   = ref(null)
 const chartHeight    = 240
 
-// Fix 3 — sortable columns
-const sortKey = ref('composite_score')
-const sortDir = ref('desc')
-
 function sortBy(key) {
-  if (sortKey.value === key) {
-    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc'
+  if (vState.sortKey === key) {
+    vState.sortDir = vState.sortDir === 'asc' ? 'desc' : 'asc'
   } else {
-    sortKey.value = key
-    sortDir.value = key === 'concept_name' ? 'asc' : 'desc'
+    vState.sortKey = key
+    vState.sortDir = key === 'concept_name' ? 'asc' : 'desc'
   }
 }
 
 function sortIndicator(key) {
-  if (sortKey.value !== key) return ''
-  return sortDir.value === 'asc' ? ' ▲' : ' ▼'
+  if (vState.sortKey !== key) return ''
+  return vState.sortDir === 'asc' ? ' ▲' : ' ▼'
 }
 
 const sortedConcepts = computed(() => {
   return [...concepts.value].sort((a, b) => {
-    const mul  = sortDir.value === 'asc' ? 1 : -1
-    const aVal = a[sortKey.value]
-    const bVal = b[sortKey.value]
+    const mul  = vState.sortDir === 'asc' ? 1 : -1
+    const aVal = a[vState.sortKey]
+    const bVal = b[vState.sortKey]
     if (typeof aVal === 'string') return mul * aVal.localeCompare(bVal)
-    return mul * ((aVal > bVal ? 1 : aVal < bVal ? -1 : 0))
+    return mul * (aVal > bVal ? 1 : aVal < bVal ? -1 : 0)
   })
 })
 
 let resizeObserver = null
-
-// Fix 2 — shared D3 tooltip created once, reused across charts
 let d3Tooltip = null
 
 function getTooltip() {
@@ -135,35 +150,45 @@ function getTooltip() {
     d3Tooltip = d3.select('body').append('div')
       .attr('id', 'rtt-chart-tooltip')
       .style('position',       'absolute')
-      .style('background',     '#1e1e2e')
-      .style('border',         '1px solid #4a9eff')
+      .style('background',     'var(--canvas-tooltip-bg)')
+      .style('border',         '1px solid var(--canvas-tooltip-border)')
       .style('padding',        '8px 12px')
       .style('border-radius',  '6px')
       .style('pointer-events', 'none')
       .style('font-size',      '12px')
-      .style('color',          '#e2e8f0')
+      .style('color',          'var(--canvas-tooltip-text)')
       .style('opacity',        0)
       .style('z-index',        9999)
   }
   return d3Tooltip
 }
 
-const trendColor = {
-  accelerating: '#00d4aa',
-  decelerating: '#ff6b6b',
-  stable:       '#4a9eff',
-}
-
 async function load() {
+  loading.value = true
+  error.value   = null
+  concepts.value = []
   try {
-    concepts.value = await api.getTopConcepts(200)
+    if (vState.mode === 'global') {
+      concepts.value = await api.getTopConcepts(200)
+    } else {
+      const papers = await api.getUserPapers()
+      userPaperCount.value = papers.filter(p => p.status === 'processed').length
+      concepts.value = await api.getUserVelocity()
+    }
   } catch (e) {
     error.value = e.response?.status === 401
       ? 'Session expired — please log in again.'
-      : (e.message ?? 'Failed to load concepts.')
+      : (e.response?.data?.detail ?? e.message ?? 'Failed to load.')
   } finally {
     loading.value = false
   }
+}
+
+function switchMode(m) {
+  vState.mode    = m
+  vState.sortKey = 'composite_score'
+  vState.sortDir = 'desc'
+  load()
 }
 
 async function renderCharts() {
@@ -200,14 +225,12 @@ function drawChart(svgEl, data, field, containerWidth) {
     .domain([0, maxVal * 1.18])
     .range([innerH, 0])
 
-  // Grid lines
   svg.append('g')
     .call(d3.axisLeft(y).ticks(4).tickSize(-innerW))
     .call(g => g.select('.domain').remove())
-    .call(g => g.selectAll('.tick line').attr('stroke', '#1e1e2e'))
-    .call(g => g.selectAll('.tick text').attr('fill', '#64748b').attr('font-size', 11))
+    .call(g => g.selectAll('.tick line').style('stroke', 'var(--canvas-tooltip-bg)'))
+    .call(g => g.selectAll('.tick text').style('fill', 'rgb(var(--color-text-muted))').attr('font-size', 11))
 
-  // Bars with Fix 2 tooltip
   const tip = getTooltip()
 
   svg.selectAll('rect')
@@ -217,16 +240,16 @@ function drawChart(svgEl, data, field, containerWidth) {
     .attr('y',      d => y(d[field]))
     .attr('width',  x.bandwidth())
     .attr('height', d => Math.max(1, innerH - y(d[field])))
-    .attr('fill',   d => trendColor[d.trend] ?? '#4a9eff')
+    .style('fill',  d => `var(--canvas-${d.trend}, var(--canvas-stable))`)
     .attr('rx', 2)
     .on('mouseover', (event, d) => {
       tip.transition().duration(150).style('opacity', 1)
       tip.html(`
         <strong>${d.concept_name}</strong><br/>
-        Velocity: ${d.velocity > 0 ? '+' : ''}${d.velocity.toFixed(1)}<br/>
-        Acceleration: ${d.acceleration > 0 ? '+' : ''}${d.acceleration.toFixed(1)}<br/>
+        Prominence: +${d.velocity.toFixed(1)}<br/>
+        Coverage: +${d.acceleration.toFixed(1)}<br/>
         Trend: ${d.trend}<br/>
-        Weeks of data: ${d.weeks_of_data ?? '—'}
+        Papers: ${d.weeks_of_data ?? '—'}
       `)
         .style('left', `${event.pageX + 12}px`)
         .style('top',  `${event.pageY - 28}px`)
@@ -237,7 +260,6 @@ function drawChart(svgEl, data, field, containerWidth) {
     })
     .on('mouseout', () => tip.transition().duration(150).style('opacity', 0))
 
-  // Value labels on bars
   svg.selectAll('.val-label')
     .data(sorted)
     .join('text')
@@ -245,20 +267,16 @@ function drawChart(svgEl, data, field, containerWidth) {
     .attr('x', d => x(d.concept_name) + x.bandwidth() / 2)
     .attr('y', d => y(d[field]) - 4)
     .attr('text-anchor', 'middle')
-    .attr('fill', '#94a3b8')
+    .style('fill', 'var(--canvas-label)')
     .attr('font-size', 9)
-    .text(d => {
-      const v = d[field]
-      return v >= 0 ? `+${Math.round(v)}` : `${Math.round(v)}`
-    })
+    .text(d => `+${Math.round(d[field])}`)
 
-  // X axis — 45° rotated labels
   svg.append('g')
     .attr('transform', `translate(0,${innerH})`)
     .call(d3.axisBottom(x).tickSize(0))
-    .call(g => g.select('.domain').attr('stroke', '#1e1e2e'))
+    .call(g => g.select('.domain').style('stroke', 'var(--canvas-tooltip-bg)'))
     .call(g => g.selectAll('.tick text')
-      .attr('fill', '#64748b')
+      .style('fill', 'rgb(var(--color-text-muted))')
       .attr('font-size', 10)
       .attr('transform', 'rotate(-45)')
       .style('text-anchor', 'end')
@@ -280,7 +298,6 @@ onMounted(() => {
 
 onUnmounted(() => {
   if (resizeObserver) resizeObserver.disconnect()
-  // Remove the shared tooltip from the DOM
   if (d3Tooltip) {
     d3Tooltip.remove()
     d3Tooltip = null
