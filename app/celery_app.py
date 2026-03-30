@@ -13,6 +13,7 @@ celery_app = Celery(
     include=[
         "app.tasks.process_paper",
         "app.tasks.cleanup",
+        "app.tasks.embed_papers",
     ],
 )
 

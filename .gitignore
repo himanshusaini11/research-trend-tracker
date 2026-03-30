@@ -25,6 +25,9 @@ env/
 .env.local
 .env.*.local
 !.env.example
+# .env.params contains shared tuning parameters only — no secrets, safe to commit.
+!.env.params
+!.env.params.example
 
 # =============================================================
 # uv

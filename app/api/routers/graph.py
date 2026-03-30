@@ -10,12 +10,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, get_db, get_rate_limiter
 from app.core.config import settings
+from app.core.logger import get_logger
 from app.core.models import Paper, PredictionReportRow
 from app.core.rate_limiter import RateLimiter
 from app.graph.graph_analyzer import GraphAnalyzer
 from app.graph.prediction_synthesizer import PredictionSynthesizer
 from app.graph.report_archive import ReportArchive
 from app.graph.schemas import ArchivedReport, ConceptSignal, PredictionReport
+from app.services import rag
+from app.services.rag import PaperResult
+
+log = get_logger(__name__)
 
 router = APIRouter(tags=["graph"])
 
@@ -27,6 +32,7 @@ class GenerateRequest(BaseModel):
 class GenerateResponse(BaseModel):
     id: str
     report: PredictionReport
+    sources: list[PaperResult] = []
 
 
 class GraphStats(BaseModel):
@@ -153,10 +159,28 @@ async def generate_prediction(
         top_n=settings.graph_top_n_concepts,
         k_samples=settings.graph_centrality_k_samples,
     )
-    signals = await analyzer.analyze(db)
+    signals = (await analyzer.read_signals(db))[: settings.predict_top_signals]
 
-    synthesizer = PredictionSynthesizer(model=settings.ollama_predict_model)
-    report = await synthesizer.synthesize(signals, topic_context=body.topic_context)
+    retrieved = await rag.get_context_for_text(
+        text_query=body.topic_context,
+        top_k=settings.rag_top_k,
+        min_score=settings.rag_min_score,
+        db=db,
+    )
+    log.info(
+        "prediction_rag_sources",
+        count=len(retrieved),
+        signals_count=len(signals),
+        topic_context=body.topic_context,
+    )
+
+    synthesizer = PredictionSynthesizer(
+        model=settings.ollama_predict_model,
+        timeout=settings.ollama_predict_timeout_seconds,
+    )
+    report = await synthesizer.synthesize(
+        signals, topic_context=body.topic_context, sources=retrieved
+    )
 
     archive = ReportArchive()
     report_id = await archive.save(
@@ -167,4 +191,4 @@ async def generate_prediction(
         model_name=settings.ollama_predict_model,
     )
 
-    return GenerateResponse(id=str(report_id), report=report)
+    return GenerateResponse(id=str(report_id), report=report, sources=retrieved)

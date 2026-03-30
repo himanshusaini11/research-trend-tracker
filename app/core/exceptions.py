@@ -43,3 +43,7 @@ class IngestionError(AppError):
 
 class LLMError(AppError):
     """Raised when the LLM (Ollama) call fails or returns an invalid response."""
+
+
+class EmbeddingError(AppError):
+    """Raised when an Ollama embedding call fails."""

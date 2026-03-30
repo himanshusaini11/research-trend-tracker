@@ -7,6 +7,8 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
+from app.services.rag import PaperResult
+
 
 class EntityExtractionResult(BaseModel):
     """Structured output from the entity extractor for a single paper."""
@@ -83,3 +85,4 @@ class ArchivedReport(BaseModel):
     model_name: str
     generated_at: datetime
     is_validated: bool
+    sources: list[PaperResult] = []

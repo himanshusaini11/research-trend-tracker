@@ -170,7 +170,7 @@ def test_dag_task_report_has_correct_jsonb_content(prediction_db) -> None:
     row = rows[-1]  # latest
 
     assert row.topic_context == _TOPIC
-    assert row.model_name == "llama3.2"
+    assert row.model_name == "qwen3.5:27b"
     assert row.is_validated is False
     assert "emerging_directions" in row.report
     assert len(row.signals_snapshot) == 2
@@ -281,6 +281,11 @@ def test_post_generate_prediction_returns_200(api_client) -> None:
                     "app.graph.prediction_synthesizer.PredictionSynthesizer.synthesize",
                     new_callable=AsyncMock,
                     return_value=_FAKE_REPORT,
+                ),
+                patch(
+                    "app.api.routers.graph.rag.get_context_for_text",
+                    new_callable=AsyncMock,
+                    return_value=[],
                 ),
             ):
                 resp = await client.post(

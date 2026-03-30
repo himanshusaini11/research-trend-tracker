@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(".env", ".env.params"),
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -72,9 +72,19 @@ class Settings(BaseSettings):
     # Ollama / LLM
     # -------------------------------------------------------------------------
     ollama_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2"
-    ollama_predict_model: str = "llama3.2"   # fast model for prediction endpoints
+    ollama_model: str = Field(..., description="Ollama model — set in .env.params")
+    ollama_predict_model: str = Field(..., description="Ollama model for prediction endpoints — set in .env.params")
     ollama_request_timeout_seconds: int = 120
+    ollama_predict_timeout_seconds: int = 300  # prediction prompts are larger — need more time
+    predict_top_signals: int = 20              # top N signals fed to prediction synthesizer
+
+    # -------------------------------------------------------------------------
+    # Embeddings / RAG
+    # -------------------------------------------------------------------------
+    embed_model: str = "mxbai-embed-large"
+    embed_batch_size: int = 32
+    rag_top_k: int = 5
+    rag_min_score: float = 0.7
 
     # -------------------------------------------------------------------------
     # arXiv ingestion

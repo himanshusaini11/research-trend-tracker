@@ -15,13 +15,19 @@ RUN apk add --no-cache --virtual .build-deps \
         clang \
         llvm
 
-# Clone Apache AGE for PG16 and compile
+# Clone Apache AGE for PG16 and compile, then pgvector
 RUN git clone --branch PG16/v1.6.0-rc0 --depth 1 \
         https://github.com/apache/age.git /tmp/age \
  && cd /tmp/age \
  && make install \
  && cd / \
- && rm -rf /tmp/age
+ && rm -rf /tmp/age \
+ && git clone --branch v0.8.0 --depth 1 \
+        https://github.com/pgvector/pgvector.git /tmp/pgvector \
+ && cd /tmp/pgvector \
+ && make install \
+ && cd / \
+ && rm -rf /tmp/pgvector
 
 # Remove build deps to keep the final image lean
 RUN apk del .build-deps

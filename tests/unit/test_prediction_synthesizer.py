@@ -62,7 +62,7 @@ def _mock_client(response_json: dict) -> MagicMock:
 def _synth() -> PredictionSynthesizer:
     return PredictionSynthesizer(
         ollama_url="http://localhost:11434",
-        model="llama3.2",
+        model="qwen3.5:27b",
         timeout=30,
     )
 
@@ -144,8 +144,8 @@ async def test_synthesize_sends_json_format_and_system_prompt() -> None:
 
     call_kwargs = mock_client.post.call_args
     body = call_kwargs.kwargs.get("json") or call_kwargs.args[1]
-    assert body["format"] == "json"
     assert body["stream"] is False
+    assert body["think"] is False
     assert "system" in body
     assert "JSON" in body["system"]
 

@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.core.logger import get_logger, setup_logging
 from app.core.metrics import setup_metrics
 from app.api.routers import admin, auth, graph, health, papers, summarize, trends, upload, user_graph
+from app.api.search import router as search_router
 
 setup_logging()
 log = get_logger(__name__)
@@ -64,3 +65,4 @@ app.include_router(summarize.router, prefix="/api/v1/summarize")
 app.include_router(graph.router,      prefix="/graph")
 app.include_router(upload.router,     prefix="/api/upload")
 app.include_router(user_graph.router, prefix="/api/user/graph")
+app.include_router(search_router)

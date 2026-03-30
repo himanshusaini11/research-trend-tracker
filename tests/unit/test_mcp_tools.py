@@ -47,7 +47,7 @@ def _make_prediction_row(topic: str = "AI/ML research") -> MagicMock:
         "predicted_convergences": [],
         "overall_confidence": "high",
     }
-    row.model_name = "llama3.2"
+    row.model_name = "qwen3.5:27b"
     row.generated_at = datetime(2024, 6, 10, tzinfo=UTC)
     row.is_validated = False
     return row

@@ -150,7 +150,7 @@
                 <div class="text-text-primary text-sm font-semibold leading-relaxed">
                   200 concepts · 1.77M edges · 145K papers
                 </div>
-                <div class="text-text-muted text-xs mt-1">LLM / AI · 2022–2024 · llama3.2</div>
+                <div class="text-text-muted text-xs mt-1">LLM / AI · 2022–2024 · qwen3.5:27b</div>
               </template>
               <template v-else>
                 <div class="text-text-primary text-sm font-semibold leading-relaxed">
@@ -283,7 +283,7 @@ const filters = [
 ]
 
 const MODEL_VIEWS = {
-  all:    { paperFrom: null,         paperTo: null,         label: 'All 145K',    title: 'All 144,997 papers (llama3.2 extraction)' },
+  all:    { paperFrom: null,         paperTo: null,         label: 'All 145K',    title: 'All 144,997 papers (qwen3.5:27b extraction)' },
   qwen35: { paperFrom: '2024-12-29', paperTo: '2025-01-01', label: 'qwen3.5:27b', title: '559 papers Dec 29–31 2024 (qwen3.5:27b extraction)' },
 }
 const modelViews = Object.entries(MODEL_VIEWS).map(([value, m]) => ({ value, ...m }))

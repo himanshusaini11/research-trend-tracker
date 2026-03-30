@@ -82,7 +82,7 @@ async def test_save_calls_session_add_and_flush() -> None:
         topic_context="AI/ML research",
         signals=[_signal("transformer")],
         report=_report(),
-        model_name="llama3.2",
+        model_name="qwen3.5:27b",
     )
 
     session.add.assert_called_once()
@@ -109,7 +109,7 @@ async def test_save_serializes_signals_as_list_of_dicts() -> None:
         topic_context="AI/ML research",
         signals=signals,
         report=_report(),
-        model_name="llama3.2",
+        model_name="qwen3.5:27b",
     )
 
     assert isinstance(captured_row.signals_snapshot, list)
@@ -136,7 +136,7 @@ async def test_save_serializes_report_as_dict() -> None:
         topic_context="AI/ML research",
         signals=[],
         report=rep,
-        model_name="llama3.2",
+        model_name="qwen3.5:27b",
     )
 
     assert isinstance(captured_row.report, dict)
@@ -162,7 +162,7 @@ async def test_save_sets_is_validated_false() -> None:
         topic_context="AI/ML research",
         signals=[],
         report=_report(),
-        model_name="llama3.2",
+        model_name="qwen3.5:27b",
     )
 
     assert captured_row.is_validated is False
@@ -178,7 +178,7 @@ def _make_db_row(topic: str = "AI/ML research", days_ago: int = 0) -> MagicMock:
     row.id = uuid.uuid4()
     row.topic_context = topic
     row.report = {"overall_confidence": "medium"}
-    row.model_name = "llama3.2"
+    row.model_name = "qwen3.5:27b"
     row.generated_at = datetime(2024, 6, 10 + days_ago, tzinfo=UTC)
     row.is_validated = False
     return row

@@ -11,6 +11,7 @@ import json
 import httpx
 
 from app.core.config import settings
+from app.services.rag import PaperResult
 from app.core.logger import get_logger
 from app.graph.schemas import (
     ConceptSignal,
@@ -97,6 +98,7 @@ class PredictionSynthesizer:
         self,
         signals: list[ConceptSignal],
         topic_context: str = "AI/ML research",
+        sources: list[PaperResult] | None = None,
     ) -> PredictionReport:
         """Generate a prediction report from concept signals.
 
@@ -107,7 +109,7 @@ class PredictionSynthesizer:
             log.warning("prediction_synthesizer_empty_signals", topic_context=topic_context)
             return _FALLBACK_REPORT
 
-        prompt = self._build_prompt(signals, topic_context)
+        prompt = self._build_prompt(signals, topic_context, sources)
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -130,16 +132,41 @@ class PredictionSynthesizer:
                 topic_context=topic_context,
             )
             return _FALLBACK_REPORT
+        except Exception as exc:
+            log.warning(
+                "prediction_synthesizer_unexpected_error",
+                error=str(exc),
+                exc_type=type(exc).__name__,
+                topic_context=topic_context,
+            )
+            return _FALLBACK_REPORT
 
         return self._parse(raw_json, topic_context)
 
-    def _build_prompt(self, signals: list[ConceptSignal], topic_context: str) -> str:
+    def _build_prompt(
+        self,
+        signals: list[ConceptSignal],
+        topic_context: str,
+        sources: list[PaperResult] | None = None,
+    ) -> str:
+        context_block = ""
+        if sources:
+            lines = "\n".join(
+                f"[{i + 1}] {s.title} ({s.published_at.date()}) — {s.abstract_snippet}"
+                for i, s in enumerate(sources)
+            )
+            context_block = (
+                "## Relevant Recent Literature\n"
+                f"{lines}\n\n"
+                "Ground your predictions in the literature above where relevant. "
+                "Cite sources as [1], [2] etc in your reasoning fields.\n\n"
+            )
         signal_lines = "\n".join(
             f"- {s.concept_name}: centrality={s.centrality_score:.3f}, "
             f"velocity={s.velocity:.1f}, trend={s.trend}"
             for s in signals
         )
-        return _USER_PROMPT_TEMPLATE.format(
+        return context_block + _USER_PROMPT_TEMPLATE.format(
             topic_context=topic_context,
             signal_lines=signal_lines,
         )

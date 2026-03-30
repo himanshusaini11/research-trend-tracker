@@ -178,7 +178,7 @@ cp .env.example .env
 docker compose up -d postgres redis
 # Ollama: native install is ~5–10x faster than Docker on Mac (GPU/Neural Engine)
 ollama pull qwen3.5:27b    # ~17 GB — primary model for all tasks
-ollama pull llama3.2       # optional fallback / faster testing
+ollama pull mxbai-embed-large  # embedding model for RAG pipeline
 ```
 
 > **Docker Ollama alternative:** `docker compose up -d ollama` then

@@ -27,7 +27,7 @@ def _make_client(response_json: dict) -> MagicMock:
 def _extractor() -> EntityExtractor:
     return EntityExtractor(
         ollama_url="http://localhost:11434",
-        model="llama3.2",
+        model="qwen3.5:27b",
         timeout=30,
     )
 
@@ -176,7 +176,7 @@ async def test_extract_sends_correct_model_and_format() -> None:
 
     call_kwargs = mock_client.post.call_args
     body = call_kwargs.kwargs.get("json") or call_kwargs.args[1]
-    assert body["model"] == "llama3.2"
+    assert body["model"] == "qwen3.5:27b"
     assert body["format"] == "json"
     assert body["stream"] is False
     assert "My Title" in body["prompt"]

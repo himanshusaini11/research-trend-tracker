@@ -38,7 +38,7 @@ class EntityExtractor:
 
     Args:
         ollama_url: Base URL of the Ollama API (e.g. http://localhost:11434).
-        model: Ollama model name (e.g. llama3.2).
+        model: Ollama model name (e.g. qwen3.5:27b).
         timeout: HTTP request timeout in seconds.
     """
 

@@ -22,7 +22,7 @@ async def test_summarize_with_mock_chain(
         summary="Research in AI is accelerating with transformer models.",
         keywords_covered=["transformer", "attention"],
         generated_at=datetime.now(UTC),
-        model_used="llama3.2",
+        model_used="qwen3.5:27b",
     )
 
     with patch(
