@@ -110,6 +110,17 @@ def write_to_db(**context) -> None:  # type: ignore[type-arg]
 
 
 # ---------------------------------------------------------------------------
+# Task 4a — embed new paper abstracts (parallel with fetch_semantic_scholar)
+# ---------------------------------------------------------------------------
+def embed_new_papers(**context) -> None:  # type: ignore[type-arg]
+    """Embed abstracts of papers written in this DAG run. Idempotent."""
+    from app.tasks.embed_papers import embed_unprocessed_papers
+
+    result = embed_unprocessed_papers(limit=200)
+    log.info("embed_new_papers_done", embedded=result["embedded"], skipped=result["skipped"])
+
+
+# ---------------------------------------------------------------------------
 # Task 4 — fetch citation/author data from Semantic Scholar
 # ---------------------------------------------------------------------------
 
@@ -346,20 +357,35 @@ def generate_predictions(**context) -> None:  # type: ignore[type-arg]
     from app.graph.graph_analyzer import GraphAnalyzer
     from app.graph.prediction_synthesizer import PredictionSynthesizer
     from app.graph.report_archive import ReportArchive
+    from app.services import rag
 
     async def _run() -> None:
         analyzer = GraphAnalyzer(
             top_n=settings.graph_top_n_concepts,
             k_samples=settings.graph_centrality_k_samples,
         )
-        synthesizer = PredictionSynthesizer()
+        synthesizer = PredictionSynthesizer(
+            model=settings.ollama_predict_model,
+            timeout=settings.ollama_predict_timeout_seconds,
+        )
         archive = ReportArchive()
 
         async with AsyncSessionLocal() as session:
-            signals = await analyzer.analyze(session)
-            await session.commit()
+            signals = await analyzer.read_signals(session)
 
-        report = await synthesizer.synthesize(signals, topic_context=_TOPIC_CONTEXT)
+        async with AsyncSessionLocal() as session:
+            sources = await rag.get_context_for_text(
+                _TOPIC_CONTEXT,
+                top_k=settings.rag_top_k,
+                min_score=settings.rag_min_score,
+                db=session,
+            )
+
+        report = await synthesizer.synthesize(
+            signals[: settings.predict_top_signals],
+            topic_context=_TOPIC_CONTEXT,
+            sources=sources,
+        )
 
         async with AsyncSessionLocal() as session:
             report_id = await archive.save(
@@ -367,7 +393,7 @@ def generate_predictions(**context) -> None:  # type: ignore[type-arg]
                 topic_context=_TOPIC_CONTEXT,
                 signals=signals,
                 report=report,
-                model_name=settings.ollama_model,
+                model_name=settings.ollama_predict_model,
             )
             await session.commit()
 
@@ -397,6 +423,12 @@ with DAG(
     t_fetch = PythonOperator(task_id="fetch_papers", python_callable=fetch_papers)
     t_index = PythonOperator(task_id="index_keywords", python_callable=index_keywords)
     t_write = PythonOperator(task_id="write_to_db", python_callable=write_to_db)
+    t_embed = PythonOperator(
+        task_id="embed_new_papers",
+        python_callable=embed_new_papers,
+        retries=2,
+        retry_delay=timedelta(minutes=5),
+    )
     t_semantic = PythonOperator(
         task_id="fetch_semantic_scholar", python_callable=fetch_semantic_scholar
     )
@@ -410,4 +442,4 @@ with DAG(
         task_id="generate_predictions", python_callable=generate_predictions
     )
 
-    t_fetch >> t_index >> t_write >> t_semantic >> t_graph >> t_analyze >> t_predict
+    t_fetch >> t_index >> t_write >> [t_embed, t_semantic] >> t_graph >> t_analyze >> t_predict

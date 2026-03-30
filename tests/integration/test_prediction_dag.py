@@ -131,9 +131,19 @@ def _run_dag_task(loop) -> None:
             return_value=_FAKE_SIGNALS,
         ),
         patch(
+            "app.graph.graph_analyzer.GraphAnalyzer.read_signals",
+            new_callable=AsyncMock,
+            return_value=_FAKE_SIGNALS,
+        ),
+        patch(
             "app.graph.prediction_synthesizer.PredictionSynthesizer.synthesize",
             new_callable=AsyncMock,
             return_value=_FAKE_REPORT,
+        ),
+        patch(
+            "app.services.rag.get_context_for_text",
+            new_callable=AsyncMock,
+            return_value=[],
         ),
     ):
         generate_predictions(ti=mock_ti)

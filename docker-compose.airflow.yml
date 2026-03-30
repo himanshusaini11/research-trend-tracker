@@ -39,6 +39,7 @@ x-airflow-common: &airflow-common
       greenlet>=3.0
       langchain>=0.1
       langchain-ollama>=0.1
+      pgvector>=0.3
   volumes:
     - ./airflow/dags:/opt/airflow/dags
     - ./airflow/plugins:/opt/airflow/plugins
