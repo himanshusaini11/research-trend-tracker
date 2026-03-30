@@ -1,6 +1,7 @@
 from collections.abc import AsyncGenerator
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy.engine import Engine
+from sqlalchemy import create_engine
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,

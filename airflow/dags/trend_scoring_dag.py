@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 
 import structlog
 from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator
 
 log = structlog.get_logger(__name__)
 
