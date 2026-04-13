@@ -409,6 +409,67 @@ def generate_predictions(**context) -> None:  # type: ignore[type-arg]
 
 
 # ---------------------------------------------------------------------------
+# Task 8 — ARIS multi-agent simulation (runs after predictions are generated)
+# ---------------------------------------------------------------------------
+def run_simulation(**context) -> None:  # type: ignore[type-arg]
+    _TOPIC_CONTEXT = "AI/ML research"
+
+    import json
+
+    from sqlalchemy import select
+
+    from app.core.database import AsyncSessionLocal
+    from app.core.models import PredictionReportRow, SimulationResultRow
+    from app.graph.schemas import PredictionReport
+    from app.simulation.runner import SimulationRunner
+
+    async def _run() -> None:
+        async with AsyncSessionLocal() as session:
+            row = (
+                await session.execute(
+                    select(PredictionReportRow)
+                    .where(PredictionReportRow.topic_context == _TOPIC_CONTEXT)
+                    .order_by(PredictionReportRow.generated_at.desc())
+                    .limit(1)
+                )
+            ).scalars().first()
+
+            if row is None:
+                log.warning("run_simulation_skip", reason="no prediction report found")
+                return
+
+            prediction_report = PredictionReport.model_validate(row.report)
+            runner = SimulationRunner()
+            sim_report = await runner.run(
+                prediction_report=prediction_report,
+                topic_context=_TOPIC_CONTEXT,
+                db=session,
+                prediction_report_id=str(row.id),
+            )
+
+            result_row = SimulationResultRow(
+                prediction_report_id=row.id,
+                topic_context=_TOPIC_CONTEXT,
+                simulation_config={"max_rounds": runner._max_rounds},
+                results=json.loads(sim_report.model_dump_json()),
+                model_name=sim_report.model_name,
+                generated_at=sim_report.generated_at,
+                duration_seconds=sim_report.duration_seconds,
+            )
+            session.add(result_row)
+            await session.commit()
+
+        log.info(
+            "run_simulation_complete",
+            directions=len(sim_report.adoption_reports),
+            overall_confidence=sim_report.overall_simulation_confidence,
+            duration=sim_report.duration_seconds,
+        )
+
+    asyncio.run(_run())
+
+
+# ---------------------------------------------------------------------------
 # DAG definition
 # ---------------------------------------------------------------------------
 with DAG(
@@ -441,5 +502,11 @@ with DAG(
     t_predict = PythonOperator(
         task_id="generate_predictions", python_callable=generate_predictions
     )
+    t_simulate = PythonOperator(
+        task_id="run_simulation",
+        python_callable=run_simulation,
+        retries=1,
+        retry_delay=timedelta(minutes=10),
+    )
 
-    t_fetch >> t_index >> t_write >> [t_embed, t_semantic] >> t_graph >> t_analyze >> t_predict
+    t_fetch >> t_index >> t_write >> [t_embed, t_semantic] >> t_graph >> t_analyze >> t_predict >> t_simulate

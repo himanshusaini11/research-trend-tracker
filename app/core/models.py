@@ -304,3 +304,32 @@ class PredictionReportRow(Base):
         Index("ix_prediction_reports_topic_context", "topic_context"),
         Index("ix_prediction_reports_generated_at", "generated_at"),
     )
+
+
+class SimulationResultRow(Base):
+    """Persisted ARIS simulation results (v3.0.0)."""
+
+    __tablename__ = "simulation_results"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=text("gen_random_uuid()")
+    )
+    prediction_report_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("prediction_reports.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    topic_context: Mapped[str] = mapped_column(Text, nullable=False)
+    simulation_config: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    results: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    model_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    generated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=text("NOW()")
+    )
+    duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+
+    __table_args__ = (
+        Index("ix_simulation_results_topic_context", "topic_context"),
+        Index("ix_simulation_results_generated_at", "generated_at"),
+        Index("ix_simulation_results_prediction_report_id", "prediction_report_id"),
+    )

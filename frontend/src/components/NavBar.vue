@@ -57,7 +57,7 @@
           </svg>
         </button>
       </div>
-      <span class="text-text-muted text-xs">v2.3.0</span>
+      <span class="text-text-muted text-xs">v3.0.0</span>
     </div>
   </nav>
 </template>
@@ -78,6 +78,7 @@ const items = computed(() => {
     { path: '/dashboard/predictions', icon: '◎', label: 'Predictions' },
     { path: '/dashboard/velocity',    icon: '⟿', label: 'Velocity' },
   ]
+  base.push({ path: '/dashboard/simulation', icon: '⬡', label: 'Simulation' })
   if (!auth.isDemo) base.push({ path: '/dashboard/upload', icon: '↑', label: 'Upload' })
   if (auth.isAdmin)  base.push({ path: '/dashboard/admin',  icon: '⚙', label: 'Admin' })
   return base

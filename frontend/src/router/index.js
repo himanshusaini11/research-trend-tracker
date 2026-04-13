@@ -22,6 +22,7 @@ const routes = [
       { path: 'velocity',    component: () => import('../views/VelocityChart.vue') },
       { path: 'admin',       component: () => import('../views/AdminPanel.vue'),  meta: { requiresAdmin: true } },
       { path: 'upload',      component: () => import('../views/UploadView.vue') },
+      { path: 'simulation',  component: () => import('../views/SimulationView.vue') },
     ],
   },
 ]

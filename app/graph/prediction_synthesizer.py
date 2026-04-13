@@ -18,6 +18,7 @@ from app.graph.schemas import (
     EmergingDirection,
     PredictedConvergence,
     PredictionReport,
+    SimulationReport,
     UnexploredGap,
 )
 
@@ -99,8 +100,15 @@ class PredictionSynthesizer:
         signals: list[ConceptSignal],
         topic_context: str = "AI/ML research",
         sources: list[PaperResult] | None = None,
+        simulation_context: SimulationReport | None = None,
     ) -> PredictionReport:
         """Generate a prediction report from concept signals.
+
+        Args:
+            simulation_context: Optional ARIS simulation result. When provided,
+                agent consensus summaries are prepended to the prompt so the LLM
+                can weight its confidence assessments accordingly. Existing
+                callers that omit this argument get identical behaviour.
 
         Returns a fallback report (overall_confidence='low') on any error —
         never raises, so the DAG task cannot fail due to LLM issues.
@@ -109,7 +117,7 @@ class PredictionSynthesizer:
             log.warning("prediction_synthesizer_empty_signals", topic_context=topic_context)
             return _FALLBACK_REPORT
 
-        prompt = self._build_prompt(signals, topic_context, sources)
+        prompt = self._build_prompt(signals, topic_context, sources, simulation_context)
 
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
@@ -148,7 +156,21 @@ class PredictionSynthesizer:
         signals: list[ConceptSignal],
         topic_context: str,
         sources: list[PaperResult] | None = None,
+        simulation_context: SimulationReport | None = None,
     ) -> str:
+        sim_block = ""
+        if simulation_context:
+            summaries = [
+                f"- {ar.direction}: consensus={ar.final_consensus:.2f}, "
+                f"verdict={ar.adoption_verdict}"
+                for ar in simulation_context.adoption_reports
+            ]
+            sim_block = (
+                "## Agent Consensus Summary\n"
+                + "\n".join(summaries)
+                + "\n\nIncorporate this agent consensus into your confidence assessments.\n\n"
+            )
+
         context_block = ""
         if sources:
             lines = "\n".join(
@@ -166,7 +188,7 @@ class PredictionSynthesizer:
             f"velocity={s.velocity:.1f}, trend={s.trend}"
             for s in signals
         )
-        return context_block + _USER_PROMPT_TEMPLATE.format(
+        return sim_block + context_block + _USER_PROMPT_TEMPLATE.format(
             topic_context=topic_context,
             signal_lines=signal_lines,
         )

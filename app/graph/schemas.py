@@ -86,3 +86,57 @@ class ArchivedReport(BaseModel):
     generated_at: datetime
     is_validated: bool
     sources: list[PaperResult] = []
+
+
+# ---------------------------------------------------------------------------
+# Simulation / ARIS schemas (v3.0.0)
+# ---------------------------------------------------------------------------
+
+
+class AgentPersona(BaseModel):
+    name: str
+    role: Literal["researcher", "venture_capitalist", "policy_maker"]
+    skepticism: Literal["high", "medium", "low"]
+    temperature: float
+
+
+class AgentOpinion(BaseModel):
+    persona: str
+    direction: str
+    adoption_likelihood: Literal["high", "medium", "low"]
+    reasoning: str
+    key_concerns: list[str]
+    key_enablers: list[str]
+    confidence_score: float  # 0.0–1.0
+
+
+class SimulationRound(BaseModel):
+    round_number: int
+    opinions: list[AgentOpinion]
+    consensus_score: float  # 0.0–1.0
+    opinion_shift: float    # avg delta from previous round
+
+
+class AdoptionReport(BaseModel):
+    direction: str
+    rounds: list[SimulationRound]
+    final_consensus: float
+    consensus_reached: bool
+    death_valleys: list[str]  # shared concerns across 2+ agents
+    adoption_verdict: Literal["likely", "contested", "unlikely"]
+
+
+class SimulationReport(BaseModel):
+    topic_context: str
+    prediction_report_id: uuid.UUID | None
+    adoption_reports: list[AdoptionReport]
+    overall_simulation_confidence: Literal["high", "medium", "low"]
+    model_name: str
+    generated_at: datetime
+    duration_seconds: float
+
+
+class SimulationRequest(BaseModel):
+    topic_context: str = "AI/ML research"
+    prediction_report_id: uuid.UUID | None = None
+    max_rounds: int = 3

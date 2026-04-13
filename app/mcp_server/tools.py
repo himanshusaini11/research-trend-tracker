@@ -6,7 +6,7 @@ from sqlalchemy import any_, select
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.core.models import BridgeNodeScore, Paper, PredictionReportRow, VelocityScore
+from app.core.models import BridgeNodeScore, Paper, PredictionReportRow, SimulationResultRow, VelocityScore
 from app.analytics.aggregator import TrendAggregator
 from app.summarizer.chain import TrendSummarizerChain
 from app.mcp_server.server import mcp
@@ -194,4 +194,73 @@ async def get_prediction_report(
         "model_name": row.model_name,
         "generated_at": row.generated_at.isoformat(),
         "is_validated": row.is_validated,
+    }
+
+
+@mcp.tool()
+async def run_research_simulation(
+    topic_context: str = "AI/ML research",
+    max_rounds: int = 3,
+) -> dict:
+    """
+    Dispatch an ARIS multi-agent adoption simulation for the most recent
+    prediction report matching the given topic context.
+    Three personas (researcher, venture_capitalist, policy_maker) deliberate
+    over each emerging direction for up to max_rounds rounds.
+    Returns a Celery job_id — poll get_simulation_report for results.
+    """
+    from app.tasks.run_simulation import run_simulation_task
+
+    async with AsyncSessionLocal() as session:
+        row = (
+            await session.execute(
+                select(PredictionReportRow)
+                .where(PredictionReportRow.topic_context == topic_context)
+                .order_by(PredictionReportRow.generated_at.desc())
+                .limit(1)
+            )
+        ).scalars().first()
+
+    if row is None:
+        return {"error": f"No prediction report found for topic: {topic_context!r}"}
+
+    task = run_simulation_task.delay(
+        prediction_report_dict=row.report,
+        topic_context=topic_context,
+        prediction_report_id=str(row.id),
+        max_rounds=max_rounds,
+    )
+    return {"job_id": task.id, "status": "queued", "topic_context": topic_context}
+
+
+@mcp.tool()
+async def get_simulation_report(
+    topic_context: str = "AI/ML research",
+) -> dict:
+    """
+    Returns the most recent completed ARIS simulation result for the given
+    topic context. Includes per-direction adoption verdicts, consensus scores,
+    shared concerns (death valleys), and overall simulation confidence.
+    Returns an empty dict if no simulation has been run yet.
+    """
+    async with AsyncSessionLocal() as session:
+        row = (
+            await session.execute(
+                select(SimulationResultRow)
+                .where(SimulationResultRow.topic_context == topic_context)
+                .order_by(SimulationResultRow.generated_at.desc())
+                .limit(1)
+            )
+        ).scalars().first()
+
+    if row is None:
+        return {}
+
+    return {
+        "id": str(row.id),
+        "topic_context": row.topic_context,
+        "results": row.results,
+        "model_name": row.model_name,
+        "generated_at": row.generated_at.isoformat(),
+        "duration_seconds": row.duration_seconds,
     }

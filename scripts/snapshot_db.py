@@ -20,12 +20,8 @@ _TABLES = [
     "bridge_node_scores",
     "velocity_scores",
     "prediction_reports",
+    "keyword_counts",
 ]
-
-# keyword_counts: last 30 days only (too large to snapshot in full)
-_KEYWORD_COUNTS_CONDITION = (
-    "window_date >= NOW() - INTERVAL '30 days'"
-)
 
 
 def main() -> None:
@@ -41,9 +37,8 @@ def main() -> None:
     user = settings.postgres_user
     db   = settings.postgres_db
 
-    env = {"PGPASSWORD": settings.postgres_password}
     import os
-    full_env = {**os.environ, **env}
+    full_env = {**os.environ, "PGPASSWORD": settings.postgres_password}
 
     base_cmd = [
         "pg_dump",
@@ -57,7 +52,6 @@ def main() -> None:
 
     parts: list[str] = []
 
-    # Full dump of the three computed tables
     for table in _TABLES:
         result = subprocess.run(
             base_cmd + [f"--table={table}", db],
@@ -69,22 +63,6 @@ def main() -> None:
             print(f"[warn] pg_dump failed for {table}: {result.stderr.strip()}")
         else:
             parts.append(result.stdout)
-
-    # keyword_counts — last 30 days via --where
-    result = subprocess.run(
-        base_cmd + [
-            "--table=keyword_counts",
-            f"--where={_KEYWORD_COUNTS_CONDITION}",
-            db,
-        ],
-        capture_output=True,
-        text=True,
-        env=full_env,
-    )
-    if result.returncode != 0:
-        print(f"[warn] pg_dump failed for keyword_counts: {result.stderr.strip()}")
-    else:
-        parts.append(result.stdout)
 
     if not parts:
         print("No data dumped — check pg_dump errors above.")

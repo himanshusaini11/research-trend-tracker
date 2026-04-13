@@ -1,7 +1,7 @@
 """Unit tests for GraphAnalyzer — mocks BridgeNodeDetector and VelocityTracker."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -282,3 +282,120 @@ async def test_analyze_signal_fields_populated() -> None:
     assert s.velocity == pytest.approx(5.0)
     assert s.acceleration == pytest.approx(2.0)
     assert s.trend == "accelerating"
+
+
+# ---------------------------------------------------------------------------
+# read_signals (pre-computed DB path)
+# ---------------------------------------------------------------------------
+
+def _db_bridge(name: str, score: float) -> MagicMock:
+    r = MagicMock()
+    r.concept_name = name
+    r.centrality_score = score
+    return r
+
+
+def _db_velocity(name: str, vel: float, accel: float = 1.0, trend: str = "stable") -> MagicMock:
+    r = MagicMock()
+    r.concept_name = name
+    r.velocity = vel
+    r.acceleration = accel
+    r.trend = trend
+    return r
+
+
+def _scalars_result(rows: list) -> MagicMock:
+    return MagicMock(scalars=MagicMock(return_value=MagicMock(all=MagicMock(return_value=rows))))
+
+
+@pytest.mark.asyncio
+async def test_read_signals_empty_db() -> None:
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=_scalars_result([]))
+    analyzer = GraphAnalyzer(top_n=10)
+    result = await analyzer.read_signals(session)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_read_signals_returns_ranked_concepts() -> None:
+    bridge_rows = [_db_bridge("Transformers", 10.0), _db_bridge("LSTM", 3.0)]
+    vel_rows = [_db_velocity("Transformers", 50.0, trend="accelerating"), _db_velocity("LSTM", 10.0)]
+
+    session = AsyncMock()
+    _calls = iter([_scalars_result(bridge_rows), _scalars_result(vel_rows)])
+    session.execute = AsyncMock(side_effect=lambda *a, **kw: next(_calls))
+
+    analyzer = GraphAnalyzer(top_n=10)
+    result = await analyzer.read_signals(session)
+
+    assert len(result) == 2
+    assert result[0].concept_name == "Transformers"
+    assert result[0].velocity == pytest.approx(50.0)
+
+
+@pytest.mark.asyncio
+async def test_read_signals_top_n_respected() -> None:
+    bridge_rows = [_db_bridge(f"C{i}", float(i + 1)) for i in range(8)]
+    vel_rows: list = []
+
+    session = AsyncMock()
+    _calls = iter([_scalars_result(bridge_rows), _scalars_result(vel_rows)])
+    session.execute = AsyncMock(side_effect=lambda *a, **kw: next(_calls))
+
+    analyzer = GraphAnalyzer(top_n=3)
+    result = await analyzer.read_signals(session)
+    assert len(result) == 3
+
+
+@pytest.mark.asyncio
+async def test_read_signals_missing_velocity_defaults() -> None:
+    bridge_rows = [_db_bridge("OrphanConcept", 5.0)]
+    vel_rows: list = []  # no matching velocity
+
+    session = AsyncMock()
+    _calls = iter([_scalars_result(bridge_rows), _scalars_result(vel_rows)])
+    session.execute = AsyncMock(side_effect=lambda *a, **kw: next(_calls))
+
+    analyzer = GraphAnalyzer(top_n=5)
+    result = await analyzer.read_signals(session)
+
+    assert result[0].velocity == 0.0
+    assert result[0].trend == "stable"
+
+
+# ---------------------------------------------------------------------------
+# read_signals_page
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_read_signals_page_empty_db() -> None:
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=_scalars_result([]))
+    analyzer = GraphAnalyzer(top_n=10)
+    result = await analyzer.read_signals_page(session, limit=5, offset=0)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_read_signals_page_offset_beyond_data() -> None:
+    bridge_rows = [_db_bridge("A", 1.0), _db_bridge("B", 2.0)]
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=_scalars_result(bridge_rows))
+    analyzer = GraphAnalyzer(top_n=10)
+    result = await analyzer.read_signals_page(session, limit=5, offset=100)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_read_signals_page_returns_correct_slice() -> None:
+    bridge_rows = [_db_bridge(f"C{i}", float(10 - i)) for i in range(6)]
+    vel_rows: list = []
+
+    session = AsyncMock()
+    _calls = iter([_scalars_result(bridge_rows), _scalars_result(vel_rows)])
+    session.execute = AsyncMock(side_effect=lambda *a, **kw: next(_calls))
+
+    analyzer = GraphAnalyzer(top_n=10)
+    page = await analyzer.read_signals_page(session, limit=2, offset=1)
+    assert len(page) == 2

@@ -14,6 +14,7 @@ celery_app = Celery(
         "app.tasks.process_paper",
         "app.tasks.cleanup",
         "app.tasks.embed_papers",
+        "app.tasks.run_simulation",
     ],
 )
 

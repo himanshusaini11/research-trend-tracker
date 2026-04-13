@@ -137,4 +137,20 @@ export default {
     const { data } = await client.patch(`/api/admin/users/${userId}/toggle-admin`)
     return data
   },
+
+  // ── Simulation (ARIS v3.0.0) ──────────────────────────────────────────────
+  async runSimulation(topicContext = 'AI/ML research', maxRounds = 3) {
+    const { data } = await client.post('/graph/simulation/run', {
+      topic_context: topicContext,
+      max_rounds: maxRounds,
+    })
+    return data
+  },
+
+  async getSimulationResults(topicContext = 'AI/ML research', limit = 5) {
+    const { data } = await client.get('/graph/simulation/results', {
+      params: { topic_context: topicContext, limit },
+    })
+    return data
+  },
 }

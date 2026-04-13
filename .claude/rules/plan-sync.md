@@ -1,0 +1,1 @@
+Before marking any step complete, if the implementation required any deviation from ARIS_PLAN.md (different versions, different function signatures, different patterns, anything), update ARIS_PLAN.md to reflect the actual implementation before proceeding to the next step. ARIS_PLAN.md must always reflect what was actually built, not what was originally planned.

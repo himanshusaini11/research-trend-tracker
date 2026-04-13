@@ -11,12 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user, get_db, get_rate_limiter
 from app.core.config import settings
 from app.core.logger import get_logger
-from app.core.models import Paper, PredictionReportRow
+from app.core.models import Paper, PredictionReportRow, SimulationResultRow
 from app.core.rate_limiter import RateLimiter
 from app.graph.graph_analyzer import GraphAnalyzer
 from app.graph.prediction_synthesizer import PredictionSynthesizer
 from app.graph.report_archive import ReportArchive
-from app.graph.schemas import ArchivedReport, ConceptSignal, PredictionReport
+from app.graph.schemas import ArchivedReport, ConceptSignal, PredictionReport, SimulationRequest
 from app.services import rag
 from app.services.rag import PaperResult
 
@@ -192,3 +192,118 @@ async def generate_prediction(
     )
 
     return GenerateResponse(id=str(report_id), report=report, sources=retrieved)
+
+
+# ---------------------------------------------------------------------------
+# Simulation endpoints (ARIS v3.0.0)
+# ---------------------------------------------------------------------------
+
+class SimulationJobResponse(BaseModel):
+    job_id: str
+    status: str = "queued"
+
+
+class SimulationResultResponse(BaseModel):
+    id: str
+    topic_context: str
+    simulation_config: dict
+    results: dict
+    model_name: str
+    generated_at: str
+    duration_seconds: float
+
+
+@router.post("/simulation/run", response_model=SimulationJobResponse)
+async def run_simulation(
+    body: SimulationRequest = Body(...),
+    db: AsyncSession = Depends(get_db),
+    _user: dict[str, Any] = Depends(get_current_user),
+    rate_limiter: RateLimiter = Depends(get_rate_limiter),
+) -> SimulationJobResponse:
+    """Dispatch an ARIS multi-agent simulation as a Celery task.
+
+    If prediction_report_id is supplied the named report is used; otherwise
+    the most recent report for the given topic_context is used.
+    Returns a job_id for result polling via GET /simulation/results.
+    """
+    if not await rate_limiter.is_allowed(_user.get("sub", "anonymous")):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded",
+        )
+
+    if body.prediction_report_id:
+        row = await db.scalar(
+            select(PredictionReportRow).where(
+                PredictionReportRow.id == body.prediction_report_id
+            )
+        )
+        if row is None:
+            raise HTTPException(status_code=404, detail="Prediction report not found")
+    else:
+        row = await db.scalar(
+            select(PredictionReportRow)
+            .where(PredictionReportRow.topic_context == body.topic_context)
+            .order_by(PredictionReportRow.generated_at.desc())
+            .limit(1)
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No prediction report found for topic: {body.topic_context!r}",
+            )
+
+    # Lazy import avoids a potential circular-import chain at module load time
+    from app.tasks.run_simulation import run_simulation_task  # noqa: PLC0415
+
+    task = run_simulation_task.delay(
+        prediction_report_dict=row.report,
+        topic_context=body.topic_context,
+        prediction_report_id=str(row.id),
+        max_rounds=body.max_rounds,
+    )
+    log.info(
+        "simulation_task_dispatched",
+        job_id=task.id,
+        topic_context=body.topic_context,
+        max_rounds=body.max_rounds,
+    )
+    return SimulationJobResponse(job_id=task.id)
+
+
+@router.get("/simulation/results", response_model=list[SimulationResultResponse])
+async def get_simulation_results(
+    topic_context: str = "AI/ML research",
+    limit: Annotated[int, Query(ge=1, le=20)] = 5,
+    db: AsyncSession = Depends(get_db),
+    _user: dict[str, Any] = Depends(get_current_user),
+    rate_limiter: RateLimiter = Depends(get_rate_limiter),
+) -> list[SimulationResultResponse]:
+    """Return recent ARIS simulation results for a topic context."""
+    if not await rate_limiter.is_allowed(_user.get("sub", "anonymous")):
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded",
+        )
+
+    rows = (
+        await db.execute(
+            select(SimulationResultRow)
+            .where(SimulationResultRow.topic_context == topic_context)
+            .order_by(SimulationResultRow.generated_at.desc())
+            .limit(limit)
+        )
+    ).scalars().all()
+
+    return [
+        SimulationResultResponse(
+            id=str(r.id),
+            topic_context=r.topic_context,
+            simulation_config=r.simulation_config,
+            results=r.results,
+            model_name=r.model_name,
+            generated_at=r.generated_at.isoformat(),
+            duration_seconds=r.duration_seconds,
+        )
+        for r in rows
+    ]

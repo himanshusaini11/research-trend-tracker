@@ -11,9 +11,15 @@ from app.core.metrics import setup_metrics
 from app.api.routers import admin, auth, graph, health, papers, summarize, trends, upload, user_graph
 from app.api.search import router as search_router
 
+from importlib.metadata import version, PackageNotFoundError
+
 setup_logging()
 log = get_logger(__name__)
 
+try:
+    __version__ = version("research-trend-tracker")  # must match [project] name in pyproject.toml
+except PackageNotFoundError:
+    __version__ = "0.0.0"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -25,7 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.1.0",
+    version=__version__,
     description="arXiv research trend tracker with time-series analytics and LLM summarization",
     debug=settings.debug,
     lifespan=lifespan,
