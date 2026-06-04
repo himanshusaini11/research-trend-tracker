@@ -7,7 +7,7 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![Apache AGE](https://img.shields.io/badge/Apache_AGE-graph-F57F17?style=flat-square)
 ![Vue 3](https://img.shields.io/badge/Vue-3.x-42b883?style=flat-square&logo=vue.js&logoColor=white)
-![Coverage](https://img.shields.io/badge/coverage-86%25+-brightgreen?style=flat-square)
+![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen?style=flat-square)
 
 ---
 
@@ -33,7 +33,7 @@ Research Trend Tracker ingests arXiv papers, builds a knowledge graph of researc
 | RL + Knowledge Graphs convergence | ⚠️ Partial | RL scaling was right; KG angle missed |
 | Continual Learning emerging | ❌ Missed | Test-time compute was the real story |
 
-**Overall:** 2 strong hits, 2 partial, 1 miss — medium confidence report as expected.
+**Overall:** 3 hits, 1 partial, 1 miss — medium confidence report as expected.
 
 ---
 
@@ -154,7 +154,7 @@ User PDF → Celery Worker → PyMuPDF + TF-IDF → UserConcepts
 | Observability | Prometheus + Grafana | — | prometheus-fastapi-instrumentator |
 | Logging | structlog | ≥25.5.0 | JSON, request_id / module / duration |
 | Auth | python-jose + bcrypt | ≥3.5 / 4.x | JWT HS256, direct bcrypt (no passlib) |
-| Testing | pytest + pytest-asyncio | ≥9.0 / 1.3 | asyncio_mode=auto, ≥80% coverage |
+| Testing | pytest + pytest-asyncio | ≥9.0 / 1.3 | asyncio_mode=auto, 91% coverage (CI gate 60%) |
 | Dashboard | Streamlit + Plotly | ≥1.55 / 6.6 | Dark theme, auto-auth |
 | Package mgmt | uv | — | Always use `uv`, never `pip` |
 
@@ -388,7 +388,7 @@ research-trend-tracker/
 
 ```bash
 uv run pytest tests/ -v --cov=app --cov-report=term-missing
-# ≥80% coverage enforced (--cov-fail-under=80)
+# 91% coverage achieved; CI gate --cov-fail-under=60
 ```
 
 ---
