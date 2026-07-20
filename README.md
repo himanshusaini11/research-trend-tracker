@@ -1,39 +1,70 @@
-# Research Trend Tracker
+# Research Trend Tracker (RTT)
 
-> Graph-grounded research intelligence platform. Identifies emerging research directions from academic papers using knowledge graphs, citation velocity, LLM synthesis, and personal paper analysis.
+> Graph-grounded research-intelligence platform. Ingests arXiv papers, builds an Apache AGE
+> knowledge graph, tracks concept velocity, and uses a local LLM to synthesize structured
+> trend reports — plus **ARIS**, an experimental multi-agent LangGraph layer that stress-tests
+> research directions. Users can also upload their own PDFs for a personal knowledge graph.
 
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.135-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white)
 ![Apache AGE](https://img.shields.io/badge/Apache_AGE-graph-F57F17?style=flat-square)
+![LangGraph](https://img.shields.io/badge/LangGraph-multi--agent-1C3C3C?style=flat-square)
 ![Vue 3](https://img.shields.io/badge/Vue-3.x-42b883?style=flat-square&logo=vue.js&logoColor=white)
-![Coverage](https://img.shields.io/badge/coverage-91%25-brightgreen?style=flat-square)
+![Coverage](https://img.shields.io/badge/coverage-91%25%20local%20·%2060%25%20CI%20gate-brightgreen?style=flat-square)
+
+---
+
+## What it is (and what it isn't)
+
+**What it is:** a production-shaped data + ML system. It fetches arXiv papers, extracts
+entities and relations into an Apache AGE knowledge graph, scores concept trends with
+deterministic graph metrics (betweenness centrality, velocity, a composite score), retrieves
+context via semantic search, and has a local LLM write those signals up as readable trend
+reports. On top sits **ARIS**, a 3-persona LangGraph debate layer (Researcher / VC /
+Policymaker) that produces a heuristic viability read on a given research direction.
+
+**What it isn't:** a validated predictor or forecaster of research outcomes. ARIS's viability
+and adoption labels are **heuristic and have no ground-truth validation** behind them. This is
+stated plainly, on purpose — see [Limitations](#known-limitations). The engineering is the
+deliverable; the forecasting is framed as an architecture demonstration, not a measured result.
 
 ---
 
 ## What It Does
 
-Research Trend Tracker ingests arXiv papers, builds a knowledge graph of research concepts, tracks their velocity over time, and uses a local LLM to synthesize structured prediction reports. Researchers can also upload their own PDFs to get a personal knowledge graph, prominence scores, and AI predictions tailored to their research corpus.
+Research Trend Tracker ingests arXiv papers, builds a knowledge graph of research concepts,
+tracks their velocity over time, and uses a local LLM to synthesize structured trend reports.
+Researchers can also upload their own PDFs to get a personal knowledge graph, prominence
+scores, and LLM-generated trend reports tailored to their own corpus.
 
 **Global pipeline** — 144,997 papers · 9 categories · 2022–2024 · 2.6M graph edges
-**Personal pipeline** — Upload PDFs → extract concepts → personal graph + predictions
+**Personal pipeline** — Upload PDFs → extract concepts → personal graph + reports
+**ARIS layer (experimental)** — multi-agent LangGraph debate over a research direction
 
 ---
 
-## Validated Prediction Results
+## Prediction Case Study (Falsifiability Demonstration)
 
-**Dataset:** 889 arXiv papers, cs.CL + cs.AI, Oct–Dec 2024 (initial validation run)
-**Validated:** March 2026 — 3 months after dataset cutoff
+**Dataset:** 889 arXiv papers, cs.CL + cs.AI, Oct–Dec 2024 (initial run)
+**Graded:** March 2026 — 3 months after dataset cutoff, self-graded by the author
 
 | Prediction | Result | Notes |
 |---|---|---|
-| Vision-Language Models emerging | ✅ Correct | GPT-4o, Gemini 1.5, LLaVA all surged in early 2025 |
-| LLM Interpretability gap | ✅ Correct | Mechanistic interpretability became a major focus in 2025 |
-| Multimodal Learning gap | ✅ Correct | Remained an active research area throughout 2025 |
+| Vision-Language Models emerging | ✅ Hit | GPT-4o, Gemini 1.5, LLaVA all surged in early 2025 |
+| LLM Interpretability gap | ✅ Hit | Mechanistic interpretability became a major 2025 focus |
+| Multimodal Learning gap | ✅ Hit | Remained an active research area throughout 2025 |
 | RL + Knowledge Graphs convergence | ⚠️ Partial | RL scaling was right; KG angle missed |
-| Continual Learning emerging | ❌ Missed | Test-time compute was the real story |
+| Continual Learning emerging | ❌ Miss | Test-time compute was the real story |
 
-**Overall:** 3 hits, 1 partial, 1 miss — medium confidence report as expected.
+**Result: 3 hits, 1 partial, 1 miss** — kept here *with the miss intact*, because a system
+that only shows its wins isn't testable.
+
+> **What this is and isn't.** This is a demonstration that the output is **falsifiable** and
+> was checked against reality. It is **not** a statistical accuracy claim: n = 5, self-graded,
+> no held-out protocol, no baseline. Describing this as a headline accuracy percentage would
+> be misleading, so that framing is avoided. See [Limitations](#known-limitations) for how this
+> compares to the published state of the art.
 
 ---
 
@@ -42,39 +73,42 @@ Research Trend Tracker ingests arXiv papers, builds a knowledge graph of researc
 ```
 arXiv API ─────────────────────┐
                                ▼
-Semantic Scholar API ──► Postgres / TimescaleDB
+Semantic Scholar API ──► PostgreSQL / TimescaleDB
                                │
-                       Entity Extractor (qwen3.5:27b)
+                       Entity Extractor  (qwen3.5:27b)
                                │
                        Apache AGE Knowledge Graph
                        (Concept nodes; MENTIONS,
                         CO_OCCURS_WITH, CITES edges)
                                │
-                ┌──────────────┴──────────────┐
-                ▼                             ▼
-     Bridge Node Detector           Velocity Tracker
-     (networkx betweenness          (TimescaleDB time-
-      centrality, k=200)             series aggregation)
-                └──────────────┬──────────────┘
+                ┌──────────────┼──────────────┐
+                ▼              ▼               ▼
+     Bridge Node Detector  Velocity Tracker  Embeddings (pgvector)
+     (networkx betweenness (TimescaleDB       │  → Semantic Search
+      centrality, k=200)    time-series)       │     + RAG grounding
+                └──────────────┼──────────────┘
                                ▼
-                       Graph Analyzer
-                       (composite scoring)
+                       Graph Analyzer  →  Prediction Synthesizer
+                       (composite scoring)  (structured JSON report)
                                │
-                       Prediction Synthesizer
-                       (qwen3.5:27b → structured JSON)
+                               ▼
+              ARIS — multi-agent LangGraph layer (v3.0.0)
+        Researcher / VC / Policymaker personas over a StateGraph:
+              scatter ► gather ► converge ► synthesize
+              (consensus variance math → heuristic verdict)
                                │
              ┌─────────────────┼─────────────────┐
              ▼                 ▼                 ▼
       Report Archive        FastAPI           FastMCP
-      (Postgres)            (REST API)        (5 MCP tools)
+      (Postgres)            (REST API)        (7 MCP tools)
                                │
                  ┌─────────────┴─────────────┐
                  ▼                           ▼
           Vue 3 Frontend            Streamlit Dashboard
           (Knowledge Graph,         (scripts/dashboard.py)
-           Predictions,
-           Velocity, Uploads,
-           Admin Panel)
+           Predictions, ARIS
+           Simulation, Velocity,
+           Uploads, Admin)
 
 ─── Personal Upload Pipeline ────────────────────────────
 User PDF → Celery Worker → PyMuPDF + TF-IDF → UserConcepts
@@ -82,11 +116,11 @@ User PDF → Celery Worker → PyMuPDF + TF-IDF → UserConcepts
                               ┌─────────────────────┼──────────────┐
                               ▼                     ▼              ▼
                        My Graph               My Papers       My Predictions
-                       (KnowledgeGraph.vue)   (VelocityChart) (qwen3.5:27b)
 ```
 
 **Write path:** Airflow DAGs → `app/ingestion` → `app/analytics` → PostgreSQL
 **Graph path:** `scripts/run_graph_pipeline.py` → `app/graph` → Apache AGE
+**Simulation path:** `app/simulation` (LangGraph StateGraph) → `simulation_results`
 **Upload path:** User PDF → `app/api/routers/upload` → Celery → `app/tasks/process_paper`
 **Read path:** FastAPI → `app/api` + `app/graph` → PostgreSQL
 
@@ -97,33 +131,44 @@ User PDF → Celery Worker → PyMuPDF + TF-IDF → UserConcepts
 ### Global Knowledge Graph
 - **D3 Canvas force graph** — 200 concept nodes, zoom/pan/drag, double-click to zoom to node
 - **Trend filtering** — Accelerating / Stable / Decelerating with colour-coded nodes
-- **Model view toggle** — All 145K papers vs. qwen3.5:27b-extracted subset
 - **Concept detail panel** — centrality, velocity, acceleration, composite score
 - **Top Co-occurring** — real CO_OCCURS_WITH edges from the AGE graph
-- **Trend breakdown** — live counts of accelerating/stable/decelerating concepts
-- **AI concept chat** — qwen3.5:27b answers questions about the selected concept, with optional **thinking mode** (💭 shows full chain-of-thought reasoning)
+- **Semantic search** — pgvector cosine retrieval over embedded papers
+- **AI concept chat** — LLM answers questions about the selected concept, with optional
+  **thinking mode** (shows chain-of-thought reasoning)
+
+### ARIS — Multi-Agent Simulation (Experimental)
+> **Clearly labeled experimental and unvalidated.** ARIS runs three persona agents
+> (Researcher / VC / Policymaker) over a research direction on a LangGraph StateGraph, then
+> derives a consensus verdict from the variance of their answers. It is a demonstration of
+> agent-orchestration architecture — **not** a validated predictor of viability. The verdict
+> is a heuristic threshold cut, and the labels have no ground truth behind them.
+
+- 3 frozen persona dataclasses; RAG-grounded prompts; consensus variance math
+- LangGraph `scatter → gather → converge → synthesize` flow
+- Exposed via REST (`/graph/simulation/run`, `/graph/simulation/results`) and 2 MCP tools
+- Frontend SimulationView with ConsensusChart + AgentPanel (Pinia store)
 
 ### My Graph (Personal)
 - Upload up to 30 PDFs (≤20 MB each) via drag-and-drop
 - Celery worker extracts top-50 concepts + CO_OCCURS_WITH edges via TF-IDF
-- Personal knowledge graph visualised in the same D3 canvas
-- Real edge-based co-occurring concepts from your corpus
-- AI chat with a prompt tailored to your personal research context
+- Personal knowledge graph in the same D3 canvas; AI chat tailored to your corpus
 
 ### Velocity Chart
-- **Global mode** — velocity + composite score bar charts for 200 concepts, sortable table
-- **My Papers mode** — concept prominence (aggregated weight) and coverage score from uploaded PDFs
+- **Global mode** — velocity + composite score charts for 200 concepts, sortable table
+- **My Papers mode** — concept prominence and coverage score from uploaded PDFs
 
 ### Predictions
-- **Global mode** — LLM-synthesized structured report (emerging directions, unexplored gaps, predicted convergences) from the 145K-paper graph; archive timeline of past reports
-- **My Papers mode** — same report schema but grounded in your personal corpus; generating state persists across navigation; **Stop** button cancels the Ollama call cleanly
-- Both modes use **qwen3.5:27b** (~9 min generation time)
+- **Global mode** — LLM-synthesized structured report (emerging directions, unexplored gaps,
+  predicted convergences) from the 145K-paper graph; archive timeline of past reports
+- **My Papers mode** — same schema, grounded in your personal corpus; **Stop** button cancels
+  the Ollama call cleanly
 
 ### Auth & Admin
 - Email/password registration and login; JWT HS256 tokens with auto-refresh
-- Demo mode — read-only access to the global graph, no upload or personal features
-- Admin panel — user table, stats dashboard, toggle-admin button
-- Light / Dark / System theme toggle with no flash-of-wrong-theme
+- Demo mode — read-only access to the global graph
+- Admin panel — user table, stats dashboard, toggle-admin
+- Light / Dark / System theme toggle
 
 ---
 
@@ -135,54 +180,60 @@ User PDF → Celery Worker → PyMuPDF + TF-IDF → UserConcepts
 | Language | Python | 3.12 | Strict type hints throughout |
 | ORM | SQLAlchemy | ≥2.0.48 | `mapped_column` style, async engine |
 | Driver | asyncpg / psycopg2 | ≥0.31 / 2.9 | asyncpg for app, psycopg2 for Alembic |
-| Migrations | Alembic | ≥1.18.4 | 9 migrations including AGE + upload tables |
+| Migrations | Alembic | ≥1.18.4 | 14 migrations including AGE + upload + simulation tables |
 | Database | PostgreSQL 16 + TimescaleDB | latest-pg16 | hypertables for time-series tables |
 | Graph DB | Apache AGE | 1.6.0-rc0 | openCypher extension on Postgres |
+| Vector / RAG | pgvector | — | cosine semantic search + ARIS grounding |
 | Graph lib | networkx | ≥3.0 | betweenness centrality for bridge nodes |
-| Task queue | Celery + Redis | — | PDF processing workers, beat scheduler |
+| Agents | LangGraph | — | 3-persona StateGraph, consensus variance math |
+| Task queue | Celery + Redis | — | PDF processing, beat scheduler, simulation task |
 | PDF extract | PyMuPDF (fitz) | — | Text extraction from uploaded PDFs |
 | Frontend | Vue 3 + Vite | 3.x / 5.x | D3.js Canvas force graph, TailwindCSS |
 | State mgmt | Pinia | — | Persists UI state across navigation |
-| Visualization | D3.js | 7.x | Canvas force graph, SVG bar charts |
-| LLM | Ollama (qwen3.5:27b) | — | All tasks: extraction, prediction, chat |
+| LLM | Ollama | — | qwen3.5:27b — local generation |
+| Simulation LLM | Ollama | — | gemma4:e4b — ARIS persona agents |
 | LLM client | LangChain + langchain-ollama | ≥1.2 / 1.0 | Trend summarization chain |
-| LLM API | Anthropic SDK | latest | Batch API for large-scale entity extraction |
+| Embeddings | Ollama (mxbai-embed-large) | — | 1024-dim, pgvector RAG |
 | Cache | Redis | 7-alpine | Token Bucket rate limiting + Celery broker |
 | Citations | Semantic Scholar API | — | 100 req/5 min free tier |
-| Scheduler | Apache Airflow | 2.x | docker-compose.airflow.yml |
-| MCP | FastMCP | ≥3.1.0 | 5 tools total |
+| Scheduler | Apache Airflow | 3.1.8 | docker-compose.airflow.yml |
+| MCP | FastMCP | ≥3.1.0 | 7 tools total (incl. 2 ARIS simulation tools) |
 | Observability | Prometheus + Grafana | — | prometheus-fastapi-instrumentator |
 | Logging | structlog | ≥25.5.0 | JSON, request_id / module / duration |
-| Auth | python-jose + bcrypt | ≥3.5 / 4.x | JWT HS256, direct bcrypt (no passlib) |
-| Testing | pytest + pytest-asyncio | ≥9.0 / 1.3 | asyncio_mode=auto, 91% coverage (CI gate 60%) |
+| Auth | python-jose + bcrypt | ≥3.5 / 4.x | JWT HS256, direct bcrypt |
+| Testing | pytest + pytest-asyncio | ≥9.0 / 1.3 | 319 unit tests; 91% local, CI gate 60% |
 | Dashboard | Streamlit + Plotly | ≥1.55 / 6.6 | Dark theme, auto-auth |
 | Package mgmt | uv | — | Always use `uv`, never `pip` |
+
+> **Two models, deliberately.** qwen3.5:27b handles generation (extraction, prediction
+> synthesis, chat) for quality. ARIS's 3-persona simulation loop uses gemma4:e4b instead — a
+> smaller, faster model chosen to keep simulation latency down across three agents × multiple
+> rounds. This is a latency-vs-quality tradeoff, not a capability upgrade.
 
 ---
 
 ## Quick Start
 
-**Prerequisites:** Docker, Python 3.12, [uv](https://github.com/astral-sh/uv), [Ollama](https://ollama.com/download) (native recommended)
+**Prerequisites:** Docker, Python 3.12, [uv](https://github.com/astral-sh/uv),
+[Ollama](https://ollama.com/download) (native install recommended)
 
 ```bash
 git clone https://github.com/himanshusaini11/research-trend-tracker.git
 cd research-trend-tracker
 uv sync
 cp .env.example .env
-# Edit .env — set POSTGRES_PASSWORD and JWT_SECRET at minimum
+# Edit .env — set POSTGRES_PASSWORD, JWT_SECRET, and OLLAMA_SIMULATION_MODEL at minimum
 ```
 
 ### 1. Start backing services
 
 ```bash
 docker compose up -d postgres redis
-# Ollama: native install is ~5–10x faster than Docker on Mac (GPU/Neural Engine)
-ollama pull qwen3.5:27b    # ~17 GB — primary model for all tasks
-ollama pull mxbai-embed-large  # embedding model for RAG pipeline
+# Ollama runs natively on the host (not in Compose). Pull the models first:
+ollama pull qwen3.5:27b
+ollama pull gemma4:e4b       # ARIS simulation model
+ollama pull mxbai-embed-large   # embedding model for RAG
 ```
-
-> **Docker Ollama alternative:** `docker compose up -d ollama` then
-> `docker exec research-trend-tracker-ollama-1 ollama pull qwen3.5:27b`
 
 ### 2. Run database migrations
 
@@ -206,26 +257,19 @@ npm run dev
 # http://localhost:5173
 ```
 
-Register an account at the login page, or use the **Try Demo** button for read-only access.
-
 ### 5. Backfill papers and build the knowledge graph
 
 ```bash
-# Fetch arXiv papers for a date range (--no-semantic skips Semantic Scholar)
 uv run python scripts/backfill_historical.py \
-  --start-date 2024-10-01 \
-  --end-date 2024-12-31 \
-  --categories cs.CL,cs.AI \
-  --no-semantic
+  --start-date 2024-10-01 --end-date 2024-12-31 \
+  --categories cs.CL,cs.AI --no-semantic
 
-# Extract concepts → build graph → generate prediction report
 uv run python scripts/run_graph_pipeline.py
 ```
 
-### 6. Start Celery workers (for PDF uploads)
+### 6. Start Celery workers (uploads + simulation)
 
 ```bash
-# In a separate terminal
 uv run celery -A app.celery_app worker --concurrency=2 --loglevel=info
 ```
 
@@ -233,7 +277,7 @@ uv run celery -A app.celery_app worker --concurrency=2 --loglevel=info
 
 ```bash
 uv run streamlit run scripts/dashboard.py
-# http://localhost:8501 — auto-authenticates via JWT_SECRET
+# http://localhost:8501
 ```
 
 ---
@@ -244,6 +288,7 @@ uv run streamlit run scripts/dashboard.py
 |---|---|---|---|
 | `POSTGRES_PASSWORD` | — | **Yes** | PostgreSQL password |
 | `JWT_SECRET` | — | **Yes** | JWT HMAC signing secret |
+| `OLLAMA_SIMULATION_MODEL` | — | **Yes** | ARIS simulation model — required; missing value crashes startup |
 | `POSTGRES_HOST` | `localhost` | No | PostgreSQL host |
 | `POSTGRES_PORT` | `5432` | No | PostgreSQL port |
 | `POSTGRES_USER` | `rtt` | No | PostgreSQL user |
@@ -252,7 +297,7 @@ uv run streamlit run scripts/dashboard.py
 | `OLLAMA_URL` | `http://localhost:11434` | No | Ollama API base URL |
 | `OLLAMA_MODEL` | `qwen3.5:27b` | No | Model for extraction, summarization, chat |
 | `OLLAMA_PREDICT_MODEL` | `qwen3.5:27b` | No | Model for prediction synthesis |
-| `OLLAMA_REQUEST_TIMEOUT_SECONDS` | `1200` | No | LLM timeout (qwen3.5:27b needs ~9 min) |
+| `OLLAMA_REQUEST_TIMEOUT_SECONDS` | `1200` | No | LLM timeout |
 | `ARXIV_CATEGORIES` | `["cs.AI","cs.LG","cs.CL","cs.CV","cs.NE","stat.ML","cs.IR","eess.SP","eess.IV"]` | No | Categories to ingest |
 | `SEMANTIC_SCHOLAR_API_KEY` | — | No | Increases S2 rate limit |
 | `GRAPH_TOP_N_CONCEPTS` | `200` | No | Concepts per graph analysis run |
@@ -284,6 +329,7 @@ uv run streamlit run scripts/dashboard.py
 | `GET` | `/api/v1/papers/{arxiv_id}` | JWT / API Key | Single paper |
 | `GET` | `/api/v1/trends` | JWT / API Key | Trending keywords |
 | `GET` | `/api/v1/trends/summary` | JWT / API Key | Pre-scored trend analytics |
+| `GET` | `/api/v1/search` | JWT / API Key | pgvector semantic search |
 | `POST` | `/api/v1/summarize` | JWT / API Key | LLM trend summary |
 
 ### Knowledge Graph (v2)
@@ -292,7 +338,9 @@ uv run streamlit run scripts/dashboard.py
 |---|---|---|---|
 | `GET` | `/graph/top-concepts` | JWT / API Key | Bridge nodes + velocity scores |
 | `GET` | `/graph/predictions/latest` | JWT / API Key | Most recent prediction report |
-| `POST` | `/graph/predictions/generate` | JWT / API Key | Generate new prediction (5–15 min) |
+| `POST` | `/graph/predictions/generate` | JWT / API Key | Generate new prediction |
+| `POST` | `/graph/simulation/run` | JWT / API Key | Run an ARIS multi-agent simulation |
+| `GET` | `/graph/simulation/results` | JWT / API Key | Retrieve simulation results |
 
 ### User Uploads
 
@@ -309,17 +357,18 @@ uv run streamlit run scripts/dashboard.py
 |---|---|---|---|
 | `GET` | `/api/user/graph` | JWT | Personal knowledge graph (nodes + edges) |
 | `GET` | `/api/user/graph/velocity` | JWT | Concept prominence scores from uploads |
-| `POST` | `/api/user/graph/predict` | JWT | Generate personal prediction (5–15 min) |
+| `POST` | `/api/user/graph/predict` | JWT | Generate personal prediction |
 
 ### Admin
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/api/admin/users` | JWT (admin) | All users with metadata |
-| `GET` | `/api/admin/stats` | JWT (admin) | System stats (papers, keywords, etc.) |
+| `GET` | `/api/admin/stats` | JWT (admin) | System stats |
 | `PATCH` | `/api/admin/users/{id}/toggle-admin` | JWT (admin) | Grant / revoke admin role |
 
-Auth accepts JWT Bearer token **or** `X-API-Key` header. Rate limiting is Redis Token Bucket keyed per identity (not per IP).
+Auth accepts JWT Bearer token **or** `X-API-Key` header. Rate limiting is Redis Token Bucket
+keyed per identity.
 
 ---
 
@@ -329,13 +378,15 @@ Auth accepts JWT Bearer token **or** `X-API-Key` header. Rate limiting is Redis 
 uv run python -m app.mcp_server.server
 ```
 
-| Tool | Signature | Description |
-|---|---|---|
-| `get_trends` | `(category, window_days, top_n)` | Trending keywords for a category window |
-| `get_top_papers` | `(category, days_back, limit)` | Recent papers by category |
-| `summarize_week` | `(category, window_days, top_n)` | LLM trend summary |
-| `query_knowledge_graph` | `(top_n, trend_filter)` | Bridge nodes with composite scores |
-| `get_prediction_report` | `(topic_context)` | Latest prediction report for a topic |
+| Tool | Description |
+|---|---|
+| `get_trends` | Trending keywords for a category window |
+| `get_top_papers` | Recent papers by category |
+| `summarize_week` | LLM trend summary |
+| `query_knowledge_graph` | Bridge nodes with composite scores |
+| `get_prediction_report` | Latest prediction report for a topic |
+| `run_research_simulation` | Dispatch an ARIS multi-agent simulation for a topic's latest prediction |
+| `get_simulation_report` | Latest ARIS simulation result — verdicts, consensus, death valleys |
 
 ---
 
@@ -346,40 +397,30 @@ research-trend-tracker/
 ├── app/
 │   ├── core/               # Config, DB, cache, auth, rate limiting, metrics, logging
 │   ├── api/
-│   │   └── routers/        # health, papers, trends, summarize, graph,
+│   │   ├── search.py       # pgvector semantic search
+│   │   └── routers/        # health, papers, trends, summarize, graph (incl. ARIS),
 │   │                       # auth, upload, user_graph, admin
 │   ├── ingestion/          # ArxivClient, KeywordIndexer, TrendWriter, SemanticScholarClient
 │   ├── analytics/          # TrendAggregator, TrendScorer, TopicClusterer, VelocityTracker
-│   ├── summarizer/         # LangChain + Ollama chain
-│   ├── mcp_server/         # FastMCP server + 5 tools
 │   ├── graph/              # EntityExtractor, RelationBuilder, BridgeNodeDetector,
 │   │   └── extractors/     # GraphAnalyzer, PredictionSynthesizer, ReportArchive
-│   │                       # backends: OllamaExtractor / AnthropicHaikuExtractor / AnthropicSonnetExtractor
-│   ├── tasks/
-│   │   ├── process_paper.py  # Celery task: PDF → TF-IDF concepts → user graph
-│   │   └── cleanup.py        # Celery beat: expired data + stale upload cleanup
-│   └── celery_app.py         # Celery + beat schedule config
-├── frontend/
-│   └── src/
-│       ├── views/          # Login, Dashboard, KnowledgeGraph, PredictionReport,
-│       │                   # VelocityChart, UploadPanel, AdminPanel
-│       ├── components/     # GraphPanel (D3 Canvas), ConceptChat (qwen3.5 + thinking mode),
-│       │                   # NavBar, TrendBar, PredictionCard
-│       ├── stores/         # auth, graph, prediction, velocityState, graphState (Pinia)
-│       └── services/       # api.js (Axios + JWT interceptor + AbortController)
-├── airflow/dags/           # arxiv_ingestion_dag.py
-├── alembic/versions/       # 9 migrations (AGE extension + v2 tables + upload tables)
-├── scripts/
-│   ├── backfill_historical.py   # Fetch arXiv date range + Semantic Scholar citations
-│   ├── run_graph_pipeline.py    # Entity extraction → graph build → predict → archive
-│   ├── build_cooccurrence.py    # Standalone CO_OCCURS_WITH edge builder (~28h one-off)
-│   ├── snapshot_db.py           # pg_dump backup
-│   ├── validate_prediction.py   # Record prediction accuracy after the fact
-│   └── dashboard.py             # Streamlit dashboard (auto-auth)
+│   │                       # backends: Ollama / AnthropicHaiku / AnthropicSonnet
+│   ├── services/           # embedding.py, rag.py, rag_prompt.py
+│   ├── summarizer/         # LangChain + Ollama chain
+│   ├── simulation/         # ARIS v3.0.0: personas, grounding, consensus, engine, runner
+│   ├── mcp_server/         # FastMCP server + 7 tools
+│   ├── tasks/              # Celery: embed, process_paper, cleanup, run_simulation
+│   └── celery_app.py       # Celery + beat schedule config
+├── frontend/src/           # Vue views, components (incl. SimulationView), Pinia stores
+├── airflow/dags/           # arxiv_ingestion_dag.py (9 tasks incl. simulate), trend_scoring_dag.py
+├── alembic/versions/       # 14 migrations (AGE, pgvector, users, uploads, simulation_results)
+├── scripts/                # backfill_historical, run_graph_pipeline, build_cooccurrence (~28h),
+│                           # snapshot_db, validate_prediction, dashboard.py
 ├── tests/
 │   ├── unit/               # No DB/Redis — mock all I/O
 │   └── integration/        # testcontainers Postgres + Redis
-└── infra/docker/           # Multi-stage Dockerfile + Dockerfile.postgres (AGE)
+├── docs/                   # Technical_Report.md — canonical narrative
+└── infra/docker/           # Multi-stage Dockerfile + Dockerfile.postgres (AGE + pgvector)
 ```
 
 ---
@@ -387,8 +428,10 @@ research-trend-tracker/
 ## Running Tests
 
 ```bash
-uv run pytest tests/ -v --cov=app --cov-report=term-missing
-# 91% coverage achieved; CI gate --cov-fail-under=60
+uv run pytest tests/unit -v                       # fast, no Docker (319 tests)
+uv run pytest tests/integration -v                # requires Docker (testcontainers)
+uv run pytest tests/ --cov=app --cov-report=term-missing
+# 91% coverage locally; CI gate is --cov-fail-under=60
 ```
 
 ---
@@ -400,65 +443,75 @@ uv run pytest tests/ -v --cov=app --cov-report=term-missing
 | Papers ingested | 144,997 |
 | Date range | 2022 – 2024 |
 | Categories | cs.AI, cs.LG, cs.CL, cs.CV, cs.NE, stat.ML, cs.IR, eess.SP, eess.IV |
-| Concept nodes | 200 |
-| MENTIONS edges | 564,664 |
-| USES_METHOD edges | 251,538 |
-| CO_OCCURS_WITH edges | 1,776,850 |
-| Total graph edges | ~2.6M |
-| Top concept | Deep Reinforcement Learning (composite score 50.0) |
-| Accelerating / Stable / Decelerating | 17 / 106 / 77 |
+| Concept vertices (raw) | 369,359 |
+| Concepts analyzed / scored | ~315 |
+| MENTIONS edges | 568,358 |
+| USES_METHOD edges | 252,473 |
+| CO_OCCURS_WITH edges | 1,827,164 |
+| Total graph edges | ~2.65M |
+| Papers embedded (RAG) | 4,900 of ~145K (~3.4%) |
 
 ---
 
 ## Known Limitations
 
-- **qwen3.5:27b prediction time** — generating a prediction report takes ~9 minutes on a local machine. The UI persists the generating state across navigation and provides a Stop button to cancel cleanly.
-- **Velocity signal uses token matching** — LLM extracts multi-word Title Case concepts ("Large Language Models") but `keyword_counts` stores TF-IDF unigrams. Token-based matching gives directional signal but loses phrase specificity. Phrase-level storage planned for v3.
-- **Concept deduplication gap** — "Large Language Models" and "large language models" are separate graph nodes. pgvector nearest-neighbour deduplication planned for v3.
-- **Semantic Scholar enrichment** — CITES edges not yet built for the full 144K paper dataset. Use `--no-semantic` flag during backfill or provide `SEMANTIC_SCHOLAR_API_KEY`.
-- **CO_OCCURS_WITH build time** — building edges for 144,997 papers takes ~28 hours. Pre-built in the v2.2.0 snapshot.
-- **Personal upload quota** — 30 lifetime PDFs per user (configurable via `MAX_USER_LIFETIME_UPLOADS`).
-- **AWS deployment** — `infra/aws/` is scaffolded (ECS Fargate + RDS + ElastiCache) but not yet deployed.
+Stated plainly — a technical reviewer will find these anyway, and honesty is worth more than a
+superlative.
+
+- **No validated ground truth for ARIS viability labels.** Verdicts are threshold cuts over
+  the variance of three LLM answers. Useful as an architecture demo; not a measured predictor.
+- **No temporally held-out evaluation.** The relevant published state of the art (e.g.
+  Marwitz et al., *Nature Machine Intelligence*) validates comparable predictions with
+  temporally held-out link prediction and reported AUROC. **This system has no equivalent and
+  does not claim one.** Closing that gap is future work, described honestly rather than implied.
+- **RAG grounding is partial.** Only a subset of the corpus is currently embedded
+  (4,900 of ~145K, ~3.4%), so retrieval and ARIS grounding draw on a fraction of papers.
+- **Consensus math is coarse.** Three agents on a 3-level scale yield a small set of possible
+  variance values; the verdict thresholds are intentionally simple.
+- **Velocity signal uses token matching** — multi-word concepts are matched against TF-IDF
+  unigrams, giving directional signal but losing phrase specificity. Phrase-level storage is
+  future work.
+- **Concept deduplication gap** — case variants are separate graph nodes; pgvector
+  nearest-neighbour dedup is future work.
+- **Semantic Scholar enrichment** — CITES edges not yet built for the full 144K dataset.
+- **CO_OCCURS_WITH build time** — building edges for 144,997 papers takes ~28 hours (pre-built
+  in the data snapshot).
+- **Personal upload quota** — 30 lifetime PDFs per user (configurable).
 
 ---
 
 ## Changelog
 
+### v3.0.0 — ARIS Multi-Agent Layer
+- **ARIS** — 3-persona LangGraph StateGraph (Researcher / VC / Policymaker) over a research
+  direction, RAG-grounded, with consensus variance math and a heuristic verdict
+- REST endpoints (`/graph/simulation/run`, `/graph/simulation/results`), 2 MCP tools, Celery
+  task, `simulation_results` migration, and a full frontend SimulationView slice
+- Airflow DAG extended to chain the simulation task end-to-end
+
 ### v2.3.0 — Personal Research Intelligence
-- **User PDF uploads** — drag-and-drop upload panel, Celery background processing, TF-IDF concept extraction, 30-PDF lifetime quota
-- **My Graph** — personal D3 knowledge graph from uploaded papers; real edge-based co-occurring concepts; AI chat with personal context
-- **My Papers velocity** — concept prominence + coverage scores in the same velocity chart view
-- **My Predictions** — qwen3.5:27b generates structured prediction reports from your personal corpus; generating state persists across navigation; Stop button cancels Ollama cleanly
-- **Admin panel** — user table, system stats, toggle-admin
-- **qwen3.5:27b everywhere** — single model for extraction, prediction synthesis, and concept chat
-- **Thinking mode** — 💭 toggle in ConceptChat enables full chain-of-thought reasoning (shown in collapsible block)
-- **State persistence** — navigation no longer resets zoom, filters, sort order, or active tab (Pinia stores)
-- **Light / dark / system theme** — no flash of wrong theme on load
+- User PDF uploads (Celery + TF-IDF), personal My Graph / My Papers / My Predictions, admin
+  panel, single-model consolidation, thinking mode, state persistence, theming
 
 ### v2.2.0 — Data Pipeline Stabilization
-- 144,997 papers ingested (2022–2024, 9 categories)
-- 2.6M graph edges — 564K MENTIONS + 252K USES_METHOD + 1.77M CO_OCCURS_WITH
-- Idempotent extraction, pluggable LLM backends, unicode surrogate fix
+- 144,997 papers ingested; 2.6M graph edges; idempotent extraction; pluggable LLM backends
 
 ### v2.1.0 — Vue 3 + D3.js Frontend
-- Interactive knowledge graph, velocity chart, prediction viewer, split-view layout
-
 ### v2.0.0 — Knowledge Graph + Prediction Engine
-- Apache AGE graph, entity extraction, citation graph, bridge node detection, prediction synthesis
 
 ---
 
 ## Roadmap
 
-**v2.4.0 (planned)**
+Honest future work, not implied-complete features:
+
+- **Temporally held-out evaluation with a reported metric (AUROC)** — to make ARIS a *measured*
+  predictor rather than a heuristic one. This is the headline gap versus published work.
+- Full-corpus embedding to broaden RAG grounding
 - Semantic Scholar full enrichment — CITES edges for all 144K papers
 - pgvector concept deduplication — canonical nodes, merge near-duplicates
-- Phrase-level keyword storage — accurate velocity for multi-word concepts
-
-**v3.0 (planned)**
-- BERTopic semantic clustering for concept grouping
-- Public hosted demo
-- arXiv paper recommendation based on personal graph overlap
+- Phrase-level keyword storage for accurate multi-word velocity
+- BERTopic semantic clustering; public hosted demo
 
 ---
 
