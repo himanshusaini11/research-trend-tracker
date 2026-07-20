@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.postgres
+    shm_size: 256m
     environment:
       POSTGRES_USER: rtt
       POSTGRES_PASSWORD: changeme
@@ -31,7 +32,15 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile
-    env_file: .env
+    env_file:
+      - .env
+      - .env.params
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+      - OLLAMA_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8000:8000"
     volumes:
@@ -47,7 +56,15 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile
     command: celery -A app.celery_app worker --loglevel=info --concurrency=2
-    env_file: .env
+    env_file:
+      - .env
+      - .env.params
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+      - OLLAMA_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - uploads_data:/app/uploads
     depends_on:
@@ -61,7 +78,15 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile
     command: celery -A app.celery_app beat --loglevel=info
-    env_file: .env
+    env_file:
+      - .env
+      - .env.params
+    environment:
+      - REDIS_HOST=redis
+      - POSTGRES_HOST=postgres
+      - OLLAMA_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,14 +114,6 @@ services:
     ports:
       - "3000:3000"
 
-  ollama:
-    image: ollama/ollama
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama_data:/root/.ollama
-
 volumes:
   postgres_data:
-  ollama_data:
   uploads_data:
