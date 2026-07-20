@@ -106,3 +106,9 @@ v2.md
 snapshots/
 backups/
 ARIS_PLAN.md
+PRD.md
+Technical_Report.md
+diagram.html
+graphify-out/
+# Local archive — never ships to GitHub
+store/
