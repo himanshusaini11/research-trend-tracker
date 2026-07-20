@@ -92,7 +92,7 @@ class SimulationRunner:
             prediction_report_id=prediction_report_id,  # type: ignore[arg-type]
             adoption_reports=adoption_reports,
             overall_simulation_confidence=overall,
-            model_name=settings.ollama_model,
+            model_name=settings.ollama_simulation_model,
             generated_at=datetime.now(UTC),
             duration_seconds=round(duration, 2),
         )

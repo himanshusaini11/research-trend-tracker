@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from typing import TypedDict
 
 import httpx
@@ -90,6 +91,30 @@ def _build_opinion_prompt(
 # Per-persona LLM call
 # ---------------------------------------------------------------------------
 
+def _extract_json(raw: str) -> dict:
+    """Extract a JSON object from raw LLM output.
+
+    Handles two common gemma4 quirks:
+    1. Thinking tags: <|channel>thought\\n...<channel|> wrapping the JSON.
+    2. JSON embedded in prose — extracts the first {...} block via regex.
+    """
+    # Strip thinking-style channel tags produced by gemma4
+    cleaned = re.sub(r"<\|channel>.*?<channel\|>", "", raw, flags=re.DOTALL).strip()
+
+    # Fast path: the entire cleaned response is valid JSON
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    # Slow path: find the first {...} block in the text
+    match = re.search(r"\{.*\}", cleaned, re.DOTALL)
+    if match:
+        return json.loads(match.group())
+
+    raise ValueError(f"No JSON object found in LLM response: {cleaned[:200]!r}")
+
+
 async def _call_persona(
     persona: Persona,
     direction: str,
@@ -106,7 +131,7 @@ async def _call_persona(
             resp = await client.post(
                 f"{settings.ollama_url}/api/generate",
                 json={
-                    "model": settings.ollama_model,
+                    "model": settings.ollama_simulation_model,
                     "prompt": prompt,
                     "stream": False,
                     "think": False,
@@ -114,8 +139,14 @@ async def _call_persona(
                 },
             )
             resp.raise_for_status()
-            raw = resp.json().get("response", "{}")
-        data = json.loads(raw)
+            raw = resp.json().get("response", "")
+        log.debug(
+            "simulation_persona_raw_response",
+            persona=persona.name,
+            round=round_number,
+            raw_response=raw[:500],
+        )
+        data = _extract_json(raw)
         data["persona"] = persona.name
         data["direction"] = direction
         return AgentOpinion.model_validate(data)
