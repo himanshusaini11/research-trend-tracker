@@ -1,51 +1,20 @@
 <template>
-  <div ref="container" class="w-full h-full relative overflow-hidden">
+  <div ref="container" class="modernist" style="width: 100%; height: 100%; position: relative; overflow: hidden">
     <canvas ref="canvas" style="display: block" />
 
     <!-- Hover tooltip -->
     <div
       v-show="tooltip.visible"
       :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
-      class="absolute pointer-events-none bg-surface border border-border rounded-lg px-3 py-2
-             text-xs shadow-lg z-20 min-w-44"
+      style="position: absolute; pointer-events: none; z-index: 20; min-width: 176px;
+             background: var(--mn-color-surface); border: 1px solid var(--mn-color-divider);
+             padding: 8px 12px; font-size: 12px"
     >
-      <div class="text-text-primary font-medium mb-1">{{ tooltip.name }}</div>
-      <div class="text-text-muted">composite: <span class="text-text-primary font-mono">{{ tooltip.composite }}</span></div>
-      <div class="text-text-muted">velocity: <span class="text-text-primary font-mono">{{ tooltip.velocity }}</span></div>
-      <div class="text-text-muted">trend: <span :style="{ color: tooltip.trendColor }">{{ tooltip.trend }}</span></div>
-      <div class="text-text-muted/60 mt-1 text-[10px]">dbl-click to zoom</div>
-    </div>
-
-    <!-- Stats overlay — bottom-right corner -->
-    <div
-      class="absolute bottom-4 right-4 pointer-events-none z-10
-             bg-black/60 border border-white/10 rounded-lg px-3 py-2.5
-             font-mono text-[11px] leading-relaxed backdrop-blur-sm"
-      style="min-width: 180px"
-    >
-      <div class="text-white/40 uppercase tracking-wider text-[9px] mb-1.5">Graph Stats</div>
-      <div class="flex justify-between gap-4">
-        <span class="text-white/50">Nodes</span>
-        <span class="text-white/90">{{ stats.totalNodes }}</span>
-      </div>
-      <div class="flex justify-between gap-4">
-        <span class="text-white/50">Edges</span>
-        <span class="text-white/90">{{ stats.totalEdges }}</span>
-      </div>
-      <div class="flex justify-between gap-4">
-        <span class="text-white/50">Top</span>
-        <span class="text-white/90 truncate max-w-[110px]" :title="stats.topConcept">{{ stats.topConcept || '—' }}</span>
-      </div>
-      <div class="border-t border-white/10 mt-1.5 pt-1.5">
-        <div class="flex justify-between gap-4">
-          <span class="text-white/50">Processed</span>
-          <span class="text-white/90">{{ stats.papersProcessed != null ? stats.papersProcessed.toLocaleString() : '…' }}</span>
-        </div>
-        <div class="flex justify-between gap-4">
-          <span class="text-white/50">Last run</span>
-          <span class="text-white/90">{{ stats.lastRun || '…' }}</span>
-        </div>
-      </div>
+      <div style="font-weight: var(--mn-font-heading-weight); font-family: var(--mn-font-heading); margin-bottom: 4px">{{ tooltip.name }}</div>
+      <div style="opacity: .7">composite: <span style="opacity: 1">{{ tooltip.composite }}</span></div>
+      <div style="opacity: .7">velocity: <span style="opacity: 1">{{ tooltip.velocity }}</span></div>
+      <div style="opacity: .7">trend: <span :style="{ color: tooltip.trendColor }">{{ tooltip.trend }}</span></div>
+      <div style="opacity: .5; margin-top: 4px; font-size: 10px">dbl-click to zoom</div>
     </div>
   </div>
 </template>
@@ -71,40 +40,30 @@ const emit = defineEmits(['select'])
 const container = ref(null)
 const canvas    = ref(null)
 const tooltip   = ref({ visible: false, x: 0, y: 0, name: '', composite: '', velocity: '', trend: '' })
-const stats     = ref({
-  totalNodes:      0,
-  totalEdges:      0,
-  topConcept:      '',
-  papersProcessed: null,
-  lastRun:         null,
-})
 
-// Canvas colors — populated from CSS variables at draw time via readCanvasColors()
+// Canvas colors — populated from CSS variables at draw time via readCanvasColors().
+// Flat/mono system: accelerating = accent, decelerating = accent-2, stable = neutral.
 let CANVAS_COLORS = {
-  accelerating: '#00d4aa',
-  decelerating: '#ff6b6b',
-  stable:       '#4a9eff',
-  default:      '#8892a4',
-  edge:         '#4a9eff',
-  label:        '#94a3b8',
-  tooltipBg:    '#1e1e2e',
-  tooltipBorder:'#4a9eff',
-  tooltipText:  '#e2e8f0',
+  accelerating: '#ff563c',
+  decelerating: '#ef6853',
+  stable:       '#9b9797',
+  default:      '#9b9797',
+  edge:         '#201e1d66',
+  label:        '#201e1d',
+  selectionRing:'#201e1d',
 }
 
 function readCanvasColors() {
   const s = getComputedStyle(document.documentElement)
   const get = (v) => s.getPropertyValue(v).trim()
   CANVAS_COLORS = {
-    accelerating:  get('--canvas-accelerating'),
-    decelerating:  get('--canvas-decelerating'),
-    stable:        get('--canvas-stable'),
-    default:       get('--canvas-default'),
-    edge:          get('--canvas-edge'),
-    label:         get('--canvas-label'),
-    tooltipBg:     get('--canvas-tooltip-bg'),
-    tooltipBorder: get('--canvas-tooltip-border'),
-    tooltipText:   get('--canvas-tooltip-text'),
+    accelerating: get('--mn-color-accent-500'),
+    decelerating: get('--mn-color-accent-2-500'),
+    stable:       get('--mn-color-neutral-500'),
+    default:      get('--mn-color-neutral-500'),
+    edge:         get('--mn-color-divider'),
+    label:        get('--mn-color-text'),
+    selectionRing:get('--mn-color-text'),
   }
 }
 
@@ -225,7 +184,7 @@ function drawNodes() {
 
   for (const node of nodes) {
     if (node.x == null) continue
-    const r       = nodeRadius(node)
+    const r       = nodeRadius(node)  // half-width of the square
     const color   = nodeColor(node)
     const isHover = hoveredNode?.id === node.id
     const isSel   = selectedNodeId === node.id
@@ -248,19 +207,16 @@ function drawNodes() {
 
     ctx.globalAlpha = alpha
     ctx.fillStyle   = color
-    ctx.beginPath()
-    ctx.arc(node.x, node.y, r, 0, Math.PI * 2)
-    ctx.fill()
+    ctx.fillRect(node.x - r, node.y - r, r * 2, r * 2)
 
-    // White ring for selected node
+    // Selection outline — theme-aware (text color), square to match the node
     if (isSel) {
       ctx.shadowBlur  = 0
       ctx.globalAlpha = 1
-      ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+      ctx.strokeStyle = CANVAS_COLORS.selectionRing
       ctx.lineWidth   = 2.5 / currentTransform.k
-      ctx.beginPath()
-      ctx.arc(node.x, node.y, r + 4 / currentTransform.k, 0, Math.PI * 2)
-      ctx.stroke()
+      const pad = 4 / currentTransform.k
+      ctx.strokeRect(node.x - r - pad, node.y - r - pad, (r + pad) * 2, (r + pad) * 2)
     }
   }
   ctx.globalAlpha = 1
@@ -287,27 +243,6 @@ function drawLabels() {
     ctx.fillText(label, node.x, node.y + r + 13 / currentTransform.k)
   }
   ctx.globalAlpha = 1
-}
-
-// ── Stats update (reactive, called after nodes/links change) ───────────────
-
-function updateStats() {
-  const degreeMap = new Map()
-  for (const lnk of links) {
-    const s = typeof lnk.source === 'object' ? lnk.source.id : lnk.source
-    const t = typeof lnk.target === 'object' ? lnk.target.id : lnk.target
-    degreeMap.set(s, (degreeMap.get(s) ?? 0) + 1)
-    degreeMap.set(t, (degreeMap.get(t) ?? 0) + 1)
-  }
-  let topNode = null, topDeg = -1
-  for (const [id, deg] of degreeMap) {
-    if (deg > topDeg) { topDeg = deg; topNode = id }
-  }
-  stats.value.totalNodes = nodes.length
-  stats.value.totalEdges = links.length
-  stats.value.topConcept = topNode
-    ? toTitleCase(topNode)
-    : (nodes[0]?.display ?? '')
 }
 
 // ── Graph build ────────────────────────────────────────────────────────────
@@ -363,8 +298,6 @@ function buildGraph() {
   const edgeSrc = sortedAll.slice(0, Math.min(100, sortedAll.length))
   links     = deriveEdgesFrom(edgeSrc, 200)
   maxLinkWeight = Math.max(...links.map(l => l.weight), 1)
-
-  updateStats()
 
   // Reset selection
   selectedNodeId = props.focusNodeId ?? null
@@ -499,7 +432,6 @@ function addDeltaNodes(newConceptData) {
     simulation.force('link', d3.forceLink(links).id(d => d.id).distance(60).strength(0.3))
     simulation.alpha(0.3).restart()
 
-    updateStats()
     startFadeLoop()
     i += 10
   }, 50)
@@ -545,10 +477,8 @@ function findNodeAt(sx, sy) {
   for (let i = nodes.length - 1; i >= 0; i--) {
     const n = nodes[i]
     if (n.x == null) continue
-    const r  = nodeRadius(n)
-    const dx = n.x - wx
-    const dy = n.y - wy
-    if (dx * dx + dy * dy <= r * r) return n
+    const r  = nodeRadius(n)  // half-width of the square
+    if (Math.abs(n.x - wx) <= r && Math.abs(n.y - wy) <= r) return n
   }
   return null
 }
@@ -659,14 +589,6 @@ onMounted(() => {
     currentTransform = t
     if (canvasSel && zoomBehavior) canvasSel.call(zoomBehavior.transform, t)
   }
-
-  api.getGraphStats().then(s => {
-    stats.value.papersProcessed = s.papers_processed
-    if (s.last_run) {
-      const d = new Date(s.last_run)
-      stats.value.lastRun = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })
-    }
-  }).catch(() => {})
 
   canvas.value.addEventListener('mousemove', onMouseMove)
   canvas.value.addEventListener('click',     onClick)

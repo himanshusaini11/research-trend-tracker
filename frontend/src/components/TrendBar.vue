@@ -1,10 +1,5 @@
 <template>
-  <span
-    class="inline-block text-xs px-2 py-0.5 rounded font-medium"
-    :style="{ color: color, background: color + '22' }"
-  >
-    {{ trend }}
-  </span>
+  <span class="modernist tag" :class="tagClass">{{ trend }}</span>
 </template>
 
 <script setup>
@@ -14,11 +9,11 @@ const props = defineProps({
   trend: { type: String, required: true },
 })
 
-const palette = {
-  accelerating: '#00d4aa',
-  decelerating: '#ff6b6b',
-  stable:       '#4a9eff',
-}
-
-const color = computed(() => palette[props.trend] ?? '#8892a4')
+// Mono-accent system: accelerating -> accent tag, decelerating -> accent-2
+// tag, stable -> neutral tag. Mirrors GraphPanel's node-color mapping.
+const tagClass = computed(() => {
+  if (props.trend === 'accelerating') return 'tag-accent'
+  if (props.trend === 'decelerating') return 'tag-accent-2'
+  return 'tag-neutral'
+})
 </script>

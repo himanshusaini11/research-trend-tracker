@@ -1,129 +1,67 @@
 <template>
-  <div class="h-full flex flex-col">
+  <div class="modernist" style="height: 100%; display: flex; flex-direction: column">
     <!-- Controls bar -->
-    <div class="bg-surface border-b border-border px-6 py-3 flex items-center gap-6 shrink-0 flex-wrap">
+    <div style="display: flex; align-items: center; gap: 14px; padding: 14px 24px; flex-wrap: wrap;
+                border-bottom: 2px solid var(--mn-color-divider)">
 
-      <!-- Graph mode tabs (hidden for demo/unauthenticated) -->
-      <div v-if="!auth.isDemo && auth.isValid" class="flex items-center border border-border rounded-lg overflow-hidden shrink-0">
-        <button
-          v-for="tab in graphTabs" :key="tab.value"
-          @click="gState.graphMode = tab.value"
-          :class="[
-            'px-3 py-1.5 text-xs font-medium transition-colors',
-            gState.graphMode === tab.value
-              ? 'bg-accent-blue text-bg'
-              : 'text-text-muted hover:text-text-primary',
-          ]"
-        >{{ tab.label }}</button>
+      <div v-if="!auth.isDemo && auth.isValid" class="seg">
+        <label v-for="tab in graphTabs" :key="tab.value" class="seg-opt">
+          <input type="radio" name="gmode" :checked="gState.graphMode === tab.value" @change="gState.graphMode = tab.value" />{{ tab.label }}
+        </label>
       </div>
 
       <template v-if="gState.graphMode === 'global'">
-        <!-- Top N -->
-        <div class="flex items-center gap-3">
-          <label class="text-text-muted text-xs uppercase tracking-wider">Top N</label>
-          <input
-            type="range" min="50" max="1000" step="50"
-            v-model.number="gState.topN"
-            class="accent-accent-blue w-28"
-          />
-          <input
-            type="number" min="1" max="1000"
-            v-model.number="gState.topN"
-            class="bg-bg border border-border text-text-primary text-xs rounded px-2 py-1 w-16
-                   focus:outline-none focus:border-accent-blue text-center"
-          />
+        <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; opacity: .75">
+          <span>TOP N</span>
+          <input type="range" min="50" max="1000" step="50" v-model.number="gState.topN" />
+          <span>{{ gState.topN }}</span>
         </div>
 
-        <!-- Trend filter -->
-        <div class="flex items-center gap-2">
-          <label class="text-text-muted text-xs uppercase tracking-wider mr-1">Filter</label>
-          <button
-            v-for="f in filters" :key="f.value"
-            @click="gState.trendFilter = f.value"
-            :class="[
-              'px-3 py-1 rounded text-xs font-medium transition-colors',
-              gState.trendFilter === f.value
-                ? 'bg-accent-blue text-bg'
-                : 'bg-bg border border-border text-text-muted hover:border-accent-blue hover:text-text-primary'
-            ]"
-          >{{ f.label }}</button>
+        <div class="seg">
+          <label v-for="f in filters" :key="f.value" class="seg-opt">
+            <input type="radio" name="gfilter" :checked="gState.trendFilter === f.value" @change="gState.trendFilter = f.value" />{{ f.label }}
+          </label>
         </div>
 
-        <!-- Model view -->
-        <div class="flex items-center gap-2">
-          <label class="text-text-muted text-xs uppercase tracking-wider mr-1">Model</label>
-          <button
-            v-for="m in modelViews" :key="m.value"
-            @click="gState.modelView = m.value"
-            :title="m.title"
-            :class="[
-              'px-3 py-1 rounded text-xs font-medium transition-colors',
-              gState.modelView === m.value
-                ? 'bg-accent-blue text-bg'
-                : 'bg-bg border border-border text-text-muted hover:border-accent-blue hover:text-text-primary'
-            ]"
-          >{{ m.label }}</button>
+        <div class="seg">
+          <label v-for="m in modelViews" :key="m.value" class="seg-opt" :title="m.title">
+            <input type="radio" name="gmodel" :checked="gState.modelView === m.value" @change="gState.modelView = m.value" />{{ m.label }}
+          </label>
         </div>
       </template>
 
       <template v-else>
-        <!-- My Graph: dynamic slider -->
-        <div v-if="userTotalConcepts > 0" class="flex items-center gap-3">
-          <label class="text-text-muted text-xs uppercase tracking-wider">Concepts</label>
-          <input
-            type="range" :min="1" :max="userTotalConcepts" :step="userSliderStep"
-            v-model.number="gState.userTopN"
-            class="accent-accent-blue w-28"
-          />
-          <input
-            type="number" :min="1" :max="userTotalConcepts"
-            v-model.number="gState.userTopN"
-            class="bg-bg border border-border text-text-primary text-xs rounded px-2 py-1 w-16
-                   focus:outline-none focus:border-accent-blue text-center"
-          />
-          <span class="text-text-muted text-xs">/ {{ userTotalConcepts }}</span>
+        <div v-if="userTotalConcepts > 0" style="display: flex; align-items: center; gap: 8px; font-size: 12px; opacity: .75">
+          <span>CONCEPTS</span>
+          <input type="range" :min="1" :max="userTotalConcepts" :step="userSliderStep" v-model.number="gState.userTopN" />
+          <span>{{ gState.userTopN }} / {{ userTotalConcepts }}</span>
         </div>
       </template>
 
-      <!-- Search (both modes) -->
-      <input
-        type="text"
-        v-model="searchQuery"
-        placeholder="Search concepts…"
-        class="bg-bg border border-border text-text-primary text-xs rounded px-3 py-1 w-48
-               focus:outline-none focus:border-accent-blue placeholder:text-text-muted"
-      />
+      <input class="input" style="width: 180px" v-model="searchQuery" placeholder="Search concepts…" />
 
-      <button
-        @click="resetZoom"
-        class="ml-auto text-xs text-text-muted border border-border px-3 py-1 rounded
-               hover:border-accent-blue hover:text-text-primary transition-colors"
-      >Reset Zoom</button>
+      <button class="btn btn-ghost" style="margin-left: auto" @click="resetZoom">RESET ZOOM</button>
     </div>
 
     <!-- Split view: 70% graph / 30% detail -->
-    <div class="flex-1 flex overflow-hidden">
+    <div style="flex: 1; display: flex; min-height: 0">
 
       <!-- LEFT: graph canvas -->
-      <div class="relative overflow-hidden" style="flex: 0 0 70%; min-width: 0">
+      <div style="flex: 0 0 70%; position: relative; min-width: 0">
 
-        <!-- My Graph: empty state -->
         <div v-if="gState.graphMode === 'user' && userTotalConcepts === 0 && !userLoading"
-          class="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center px-8">
-          <div class="text-4xl">📄</div>
-          <p class="text-text-primary font-medium">No uploaded papers yet</p>
-          <p class="text-text-muted text-sm">Upload your own research PDFs to build a personal knowledge graph.</p>
-          <button @click="$router.push('/upload')"
-            class="px-5 py-2 bg-accent-blue text-bg text-xs font-medium rounded-lg hover:bg-blue-400 transition-colors">
-            Upload Papers →
-          </button>
+          style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center;
+                 justify-content: center; gap: 14px; text-align: center; padding: 0 32px">
+          <div style="width: 40px; height: 40px; border: 2px solid var(--mn-color-divider)"></div>
+          <p style="opacity: .7; font-size: 14px">No papers uploaded yet — your graph is empty.</p>
+          <button class="btn btn-primary" @click="$router.push('/dashboard/upload')">Upload Papers →</button>
         </div>
 
-        <div v-else-if="activeLoading" class="absolute inset-0 flex items-center justify-center z-10">
-          <div class="text-text-muted text-sm">Loading graph…</div>
+        <div v-else-if="activeLoading" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10">
+          <div style="opacity: .6; font-size: 14px">Loading graph…</div>
         </div>
-        <div v-else-if="activeError" class="absolute inset-0 flex items-center justify-center z-10">
-          <div class="text-accent-red text-sm">{{ activeError }}</div>
+        <div v-else-if="activeError" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 10">
+          <div style="color: var(--mn-color-accent-700); font-size: 14px">{{ activeError }}</div>
         </div>
 
         <GraphPanel
@@ -138,107 +76,100 @@
       </div>
 
       <!-- RIGHT: detail panel -->
-      <div class="shrink-0 overflow-auto bg-surface border-l border-border p-5 space-y-4" style="width: 30%">
+      <div style="flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px;
+                  border-left: 2px solid var(--mn-color-divider)">
 
         <template v-if="!selectedNode">
-          <div class="bg-bg border border-border rounded-lg p-4">
-            <div class="text-text-muted text-xs uppercase tracking-wider mb-2">
+          <div class="statcell">
+            <div style="font-size: 10px; opacity: .6; text-transform: uppercase; margin-bottom: 6px">
               {{ gState.graphMode === 'global' ? 'Dataset' : 'My Graph' }}
             </div>
             <template v-if="gState.graphMode === 'global'">
               <template v-if="gState.modelView === 'all'">
-                <div class="text-text-primary text-sm font-semibold leading-relaxed">
-                  200 concepts · 1.77M edges · 145K papers
+                <div style="font-weight: var(--mn-font-heading-weight); font-family: var(--mn-font-heading); font-size: 15px">
+                  <template v-if="globalStats">
+                    {{ globalStats.concept_count.toLocaleString() }} concepts · {{ formattedEdges }} edges · {{ globalStats.total_papers.toLocaleString() }} papers
+                  </template>
+                  <template v-else>loading…</template>
                 </div>
-                <div class="text-text-muted text-xs mt-1">LLM / AI · 2022–2024 · qwen3.5:27b</div>
+                <div style="opacity: .6; font-size: 12px; margin-top: 4px">LLM / AI · {{ formattedRange }} · qwen3.5:27b</div>
               </template>
               <template v-else>
-                <div class="text-text-primary text-sm font-semibold leading-relaxed">
+                <div style="font-weight: var(--mn-font-heading-weight); font-family: var(--mn-font-heading); font-size: 15px">
                   {{ store.concepts.length }} concepts · 559 papers
                 </div>
-                <div class="text-text-muted text-xs mt-1">Dec 29–31 2024 · qwen3.5:27b extraction</div>
+                <div style="opacity: .6; font-size: 12px; margin-top: 4px">Dec 29–31 2024 · qwen3.5:27b extraction</div>
               </template>
             </template>
             <template v-else>
-              <div class="text-text-primary text-sm font-semibold leading-relaxed">
+              <div style="font-weight: var(--mn-font-heading-weight); font-family: var(--mn-font-heading); font-size: 15px">
                 {{ userTotalConcepts }} concepts from your uploads
               </div>
-              <div class="text-text-muted text-xs mt-1">Extracted via TF-IDF · personal graph</div>
+              <div style="opacity: .6; font-size: 12px; margin-top: 4px">Extracted via TF-IDF · personal graph</div>
             </template>
           </div>
 
-          <div class="bg-bg border border-border rounded-lg p-4">
-            <div class="text-text-muted text-xs uppercase tracking-wider mb-3">Trend Breakdown</div>
-            <div class="space-y-2">
-              <div v-for="t in trendStats" :key="t.trend" class="flex items-center justify-between">
-                <span class="flex items-center gap-2 text-sm" :style="{ color: t.color }">
-                  <span class="inline-block w-2.5 h-2.5 rounded-full" :style="{ background: t.color }"></span>
-                  {{ t.label }}
-                </span>
-                <span class="text-text-primary text-sm font-mono">{{ t.count }}</span>
+          <div class="statcell">
+            <div style="font-size: 10px; opacity: .6; text-transform: uppercase; margin-bottom: 8px">Trend Breakdown</div>
+            <div style="display: flex; flex-direction: column; gap: 6px">
+              <div v-for="t in trendStats" :key="t.trend" style="display: flex; align-items: center; justify-content: space-between; font-size: 13px">
+                <span :class="t.tagClass" class="tag">{{ t.label }}</span>
+                <span style="font-family: var(--mn-font-heading); font-weight: var(--mn-font-heading-weight)">{{ t.count }}</span>
               </div>
             </div>
           </div>
 
-          <p class="text-text-muted/60 text-xs text-center pt-1">
+          <p style="opacity: .5; font-size: 12px; text-align: center; padding-top: 4px">
             Click a node to inspect · Dbl-click to zoom
           </p>
         </template>
 
         <!-- Node selected -->
         <template v-else>
-          <div class="flex items-start justify-between gap-2">
-            <div class="flex-1 min-w-0">
-              <h2 class="text-text-primary text-base font-semibold leading-snug break-words">
-                {{ selectedNode.display }}
-              </h2>
-              <span
-                class="inline-block mt-1.5 px-2.5 py-0.5 rounded text-xs font-medium capitalize"
-                :style="trendBadgeStyle(selectedNode.trend)"
-              >{{ selectedNode.trend }}</span>
+          <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 8px">
+            <div>
+              <h5 style="margin: 0 0 4px">{{ selectedNode.display }}</h5>
+              <span class="tag" :class="trendTagClass(selectedNode.trend)">{{ selectedNode.trend }}</span>
             </div>
-            <button @click="clearSelection"
-              class="text-text-muted hover:text-text-primary text-xl leading-none shrink-0 mt-0.5"
-            >×</button>
+            <button class="btn btn-icon" @click="clearSelection">×</button>
           </div>
 
-          <div class="bg-bg border border-border rounded-lg p-4 grid grid-cols-2 gap-x-4 gap-y-3">
-            <div>
-              <div class="text-text-muted text-xs mb-0.5">Centrality</div>
-              <div class="text-text-primary font-mono text-sm">{{ fmt4(selectedNode.centrality) }}</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+            <div class="statcell">
+              <div style="font-size: 10px; opacity: .6; text-transform: uppercase">Centrality</div>
+              <div style="font-family: var(--mn-font-heading); font-size: 19px; font-weight: 800">{{ fmt4(selectedNode.centrality) }}</div>
             </div>
-            <div>
-              <div class="text-text-muted text-xs mb-0.5">Velocity</div>
-              <div class="font-mono text-sm" :style="{ color: selectedNode.velocity >= 0 ? 'var(--canvas-accelerating)' : 'var(--canvas-decelerating)' }">
+            <div class="statcell">
+              <div style="font-size: 10px; opacity: .6; text-transform: uppercase">Velocity</div>
+              <div style="font-family: var(--mn-font-heading); font-size: 19px; font-weight: 800">
                 {{ selectedNode.velocity >= 0 ? '+' : '' }}{{ fmt1(selectedNode.velocity) }}
               </div>
             </div>
-            <div>
-              <div class="text-text-muted text-xs mb-0.5">Acceleration</div>
-              <div class="font-mono text-sm" :style="{ color: selectedNode.acceleration >= 0 ? 'var(--canvas-accelerating)' : 'var(--canvas-decelerating)' }">
+            <div class="statcell">
+              <div style="font-size: 10px; opacity: .6; text-transform: uppercase">Acceleration</div>
+              <div style="font-family: var(--mn-font-heading); font-size: 19px; font-weight: 800">
                 {{ selectedNode.acceleration >= 0 ? '+' : '' }}{{ fmt1(selectedNode.acceleration) }}
               </div>
             </div>
-            <div>
-              <div class="text-text-muted text-xs mb-0.5">Composite</div>
-              <div class="text-text-primary font-mono text-sm">{{ fmt2(selectedNode.composite_score) }}</div>
+            <div class="statcell">
+              <div style="font-size: 10px; opacity: .6; text-transform: uppercase">Composite</div>
+              <div style="font-family: var(--mn-font-heading); font-size: 19px; font-weight: 800">{{ fmt2(selectedNode.composite_score) }}</div>
             </div>
           </div>
 
-          <div class="bg-bg border border-border rounded-lg p-4">
-            <div class="text-text-muted text-xs uppercase tracking-wider mb-3">Top Co-occurring</div>
-            <div v-if="coOccurring.length" class="space-y-1.5">
+          <div>
+            <h6 style="opacity: .6; margin-bottom: 8px">TOP CO-OCCURRING</h6>
+            <div v-if="coOccurring.length" style="display: flex; flex-direction: column; gap: 6px">
               <div
-                v-for="c in coOccurring" :key="c.id"
-                class="flex items-center justify-between cursor-pointer px-2 py-1 rounded
-                       hover:bg-surface transition-colors"
+                v-for="c in coOccurring" :key="c.id" class="statcell"
+                style="display: flex; align-items: center; justify-content: space-between; cursor: pointer"
                 @click="selectCoOccurring(c)"
               >
-                <span class="text-text-primary text-xs">{{ c.display }}</span>
-                <span class="text-text-muted text-[10px] font-mono">{{ c.sharedTokens }}{{ gState.graphMode === 'user' ? 'w' : 't' }}</span>
+                <span style="font-size: 13px">{{ c.display }}</span>
+                <span style="opacity: .5; font-size: 11px">{{ c.sharedTokens }}{{ gState.graphMode === 'user' ? 'w' : 't' }}</span>
               </div>
             </div>
-            <div v-else class="text-text-muted text-xs">None found</div>
+            <div v-else style="opacity: .5; font-size: 13px">None found</div>
           </div>
 
           <ConceptChat
@@ -283,10 +214,32 @@ const filters = [
 ]
 
 const MODEL_VIEWS = {
-  all:    { paperFrom: null,         paperTo: null,         label: 'All 145K',    title: 'All 144,997 papers (qwen3.5:27b extraction)' },
+  all:    { paperFrom: null,         paperTo: null,         label: 'All papers', title: 'Full corpus (qwen3.5:27b extraction)' },
   qwen35: { paperFrom: '2024-12-29', paperTo: '2025-01-01', label: 'qwen3.5:27b', title: '559 papers Dec 29–31 2024 (qwen3.5:27b extraction)' },
 }
 const modelViews = Object.entries(MODEL_VIEWS).map(([value, m]) => ({ value, ...m }))
+
+// ── Live dataset stats (Stage 1 endpoint) for the "nothing selected" card ──
+const globalStats = ref(null)
+
+const formattedEdges = computed(() => {
+  if (!globalStats.value) return ''
+  const n = globalStats.value.edge_count
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n.toLocaleString()
+})
+
+const formattedRange = computed(() => {
+  if (!globalStats.value?.date_range_start || !globalStats.value?.date_range_end) return '—'
+  const startYear = new Date(globalStats.value.date_range_start).getFullYear()
+  const endYear   = new Date(globalStats.value.date_range_end).getFullYear()
+  return startYear === endYear ? `${startYear}` : `${startYear}–${endYear}`
+})
+
+async function loadGlobalStats() {
+  try {
+    globalStats.value = await api.getGraphStats()
+  } catch { /* card just keeps showing "loading…" — non-critical */ }
+}
 
 // ── User graph state ───────────────────────────────────────────────────────
 const userGraphData     = ref(null)
@@ -346,10 +299,12 @@ const activeError = computed(() =>
 const selectedNode = ref(null)
 const focusNodeId  = ref(null)
 
-const TREND_COLORS = {
-  accelerating: 'var(--canvas-accelerating)',
-  stable:       'var(--canvas-stable)',
-  decelerating: 'var(--canvas-decelerating)',
+// Mono-accent system: accelerating -> accent tag, decelerating -> accent-2 tag,
+// stable -> neutral tag. Mirrors GraphPanel's node-color mapping exactly.
+function trendTagClass(trend) {
+  if (trend === 'accelerating') return 'tag-accent'
+  if (trend === 'decelerating') return 'tag-accent-2'
+  return 'tag-neutral'
 }
 
 const trendStats = computed(() => {
@@ -357,9 +312,9 @@ const trendStats = computed(() => {
   const counts = { accelerating: 0, stable: 0, decelerating: 0 }
   for (const c of source) counts[c.trend] = (counts[c.trend] ?? 0) + 1
   return [
-    { trend: 'accelerating', label: 'Accelerating', count: counts.accelerating, color: TREND_COLORS.accelerating },
-    { trend: 'stable',       label: 'Stable',       count: counts.stable,       color: TREND_COLORS.stable },
-    { trend: 'decelerating', label: 'Decelerating', count: counts.decelerating, color: TREND_COLORS.decelerating },
+    { trend: 'accelerating', label: 'Accelerating', count: counts.accelerating, tagClass: 'tag-accent' },
+    { trend: 'stable',       label: 'Stable',       count: counts.stable,       tagClass: 'tag-neutral' },
+    { trend: 'decelerating', label: 'Decelerating', count: counts.decelerating, tagClass: 'tag-accent-2' },
   ]
 })
 
@@ -412,15 +367,6 @@ built from their uploaded academic papers. The current concept is "${selectedNod
 Be concise (max 3 sentences) and relate your answer to the user's personal research context.`
 })
 
-function trendBadgeStyle(trend) {
-  const map = {
-    accelerating: { background: 'rgb(var(--color-accent-green) / 0.15)', color: 'var(--canvas-accelerating)' },
-    decelerating: { background: 'rgb(var(--color-accent-red)   / 0.15)', color: 'var(--canvas-decelerating)' },
-    stable:       { background: 'rgb(var(--color-accent-blue)  / 0.15)', color: 'var(--canvas-stable)' },
-  }
-  return map[trend] ?? map.stable
-}
-
 const fmt1 = v => v != null ? Number(v).toFixed(1) : '—'
 const fmt2 = v => v != null ? Number(v).toFixed(2) : '—'
 const fmt4 = v => v != null ? Number(v).toFixed(4) : '—'
@@ -456,6 +402,7 @@ watch(() => gState.userTopN, loadUserGraph)
 
 onMounted(() => {
   loadGlobalConcepts()
+  loadGlobalStats()
   if (gState.graphMode === 'user') loadUserGraph()
 })
 </script>

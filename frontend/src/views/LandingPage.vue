@@ -1,91 +1,60 @@
 <template>
-  <div class="min-h-screen bg-bg text-text-primary flex flex-col">
+  <div class="modernist" style="min-height: 100vh; background: var(--mn-color-bg); color: var(--mn-color-text)">
 
     <!-- Top nav -->
-    <header class="border-b border-border px-6 py-4 flex items-center justify-between">
-      <div class="flex items-center gap-2">
-        <span class="text-accent-blue text-2xl">◈</span>
-        <span class="text-text-primary font-semibold text-sm tracking-wide">Research Trend Tracker</span>
+    <div class="nav" style="justify-content: space-between">
+      <div class="nav-brand" style="cursor: pointer" @click="router.push('/')">ALETHEIA</div>
+      <div style="display: flex; align-items: center; gap: 24px">
+        <a href="https://github.com" target="_blank" style="font-size: 14px">GitHub ↗</a>
+        <button class="btn btn-primary" @click="showLogin = true">Sign in</button>
       </div>
-      <div class="flex items-center gap-3">
-        <a
-          href="https://github.com"
-          target="_blank"
-          class="text-text-muted hover:text-text-primary text-xs transition-colors"
-        >GitHub</a>
-        <button
-          @click="showLogin = true"
-          class="text-xs text-text-muted border border-border px-4 py-1.5 rounded-lg
-                 hover:border-accent-blue hover:text-text-primary transition-colors"
-        >
-          Sign in
-        </button>
-      </div>
-    </header>
+    </div>
 
     <!-- Hero -->
-    <section class="flex-1 flex flex-col items-center justify-center text-center px-6 py-20">
-      <div class="text-accent-blue text-6xl mb-6 select-none">◈</div>
-      <h1 class="text-4xl sm:text-5xl font-bold text-text-primary mb-4 leading-tight">
-        Research Trend Tracker
-      </h1>
-      <p class="text-text-muted text-lg sm:text-xl max-w-2xl mb-10">
-        AI-powered research trend intelligence engine — graph-grounded predictions from 145K arXiv papers.
-      </p>
-      <div class="flex items-center gap-4 flex-wrap justify-center">
-        <button
-          @click="enterDemo"
-          class="px-8 py-3 bg-accent-blue text-bg font-semibold rounded-lg
-                 hover:bg-blue-400 transition-colors text-sm"
-        >
-          Live Demo
-        </button>
-        <button
-          @click="showLogin = true"
-          class="px-8 py-3 border border-border text-text-primary font-semibold rounded-lg
-                 hover:border-accent-blue transition-colors text-sm"
-        >
-          Sign In
-        </button>
-      </div>
-      <p class="text-text-muted/60 text-xs mt-4">Demo is read-only · No account required</p>
-    </section>
-
-    <!-- Feature cards -->
-    <section class="px-6 pb-16 max-w-5xl mx-auto w-full">
-      <h2 class="text-center text-text-muted text-xs uppercase tracking-widest mb-8">What's inside</h2>
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div v-for="f in features" :key="f.title"
-          class="bg-surface border border-border rounded-xl p-5 hover:border-accent-blue/40 transition-colors">
-          <div class="text-2xl mb-3">{{ f.icon }}</div>
-          <h3 class="text-text-primary font-semibold text-sm mb-1.5">{{ f.title }}</h3>
-          <p class="text-text-muted text-xs leading-relaxed">{{ f.desc }}</p>
+    <div style="padding: 96px 64px 80px; border-bottom: 2px solid var(--mn-color-divider)">
+      <div style="max-width: 760px">
+        <h6 style="color: var(--mn-color-accent); margin-bottom: 14px">GRAPH-GROUNDED RESEARCH INTELLIGENCE</h6>
+        <h1 style="font-size: 64px; max-width: 14ch">Watch the research frontier move before it's obvious.</h1>
+        <p style="font-size: 17px; max-width: 56ch; opacity: .8; margin-bottom: 32px">
+          Aletheia ingests the arXiv corpus into a live knowledge graph, tracks concept velocity over time,
+          and asks a local model to synthesize where the field is heading next.
+        </p>
+        <div style="display: flex; gap: 14px">
+          <button class="btn btn-primary" style="padding: 12px 22px; font-size: 15px" @click="enterDemo">
+            Live Demo →
+          </button>
+          <button class="btn btn-secondary" style="padding: 12px 22px; font-size: 15px" @click="showLogin = true">
+            Sign In
+          </button>
         </div>
       </div>
-    </section>
+    </div>
+
+    <!-- Feature cards -->
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr)">
+      <div v-for="f in featureCards" :key="f.title"
+        style="padding: 36px 28px; border-right: 2px solid var(--mn-color-divider); border-bottom: 2px solid var(--mn-color-divider)">
+        <div style="width: 28px; height: 28px; background: var(--mn-color-accent); margin-bottom: 20px"></div>
+        <h4 style="font-size: 18px; margin-bottom: 8px">{{ f.title }}</h4>
+        <p style="font-size: 13.5px; opacity: .75; margin: 0">{{ f.desc }}</p>
+      </div>
+    </div>
 
     <!-- Tech stack -->
-    <section class="border-t border-border px-6 py-10 max-w-5xl mx-auto w-full">
-      <h2 class="text-center text-text-muted text-xs uppercase tracking-widest mb-6">Built with</h2>
-      <div class="flex flex-wrap justify-center gap-3">
-        <span v-for="t in techStack" :key="t"
-          class="px-3 py-1.5 bg-surface border border-border rounded-full text-xs text-text-muted
-                 hover:border-accent-blue/40 hover:text-text-primary transition-colors">
-          {{ t }}
-        </span>
-      </div>
-    </section>
+    <div style="padding: 28px 64px; border-bottom: 2px solid var(--mn-color-divider); display: flex; gap: 10px; flex-wrap: wrap">
+      <span v-for="t in techStack" :key="t" class="pill">{{ t }}</span>
+    </div>
 
     <!-- Footer -->
-    <footer class="border-t border-border px-6 py-4 flex items-center justify-between text-xs text-text-muted">
-      <span>v2.3.0</span>
-      <a href="https://github.com" target="_blank"
-        class="hover:text-text-primary transition-colors">
-        GitHub →
-      </a>
-    </footer>
+    <div style="padding: 22px 64px; display: flex; justify-content: space-between; align-items: center; font-size: 12px; opacity: .6">
+      <span>v3.0.0</span>
+      <div style="display: flex; gap: 18px">
+        <a href="https://github.com" target="_blank">GitHub</a>
+        <a href="#" @click.prevent="router.push('/login')">Developer login</a>
+      </div>
+    </div>
 
-    <!-- Login modal -->
+    <!-- Auth modal -->
     <LoginModal v-if="showLogin" @close="showLogin = false" />
   </div>
 </template>
@@ -97,31 +66,15 @@ import LoginModal from '../components/LoginModal.vue'
 import { useAuthStore } from '../stores/auth'
 import api from '../services/api'
 
-const router   = useRouter()
-const auth     = useAuthStore()
+const router    = useRouter()
+const auth      = useAuthStore()
 const showLogin = ref(false)
 
-const features = [
-  {
-    icon: '⬡',
-    title: 'Knowledge Graph',
-    desc: 'Force-directed graph of 200 AI/ML concepts extracted from 145K papers. Explore co-occurrence and centrality.',
-  },
-  {
-    icon: '◎',
-    title: 'Trend Prediction',
-    desc: 'LLM-synthesized reports identify emerging directions, unexplored gaps, and predicted convergences.',
-  },
-  {
-    icon: '⟿',
-    title: 'Velocity Tracking',
-    desc: 'Week-over-week velocity and acceleration signals reveal which concepts are gaining or losing momentum.',
-  },
-  {
-    icon: '◉',
-    title: 'Paper Analysis',
-    desc: 'Apache AGE graph connects 144,997 papers via MENTIONS and CO_OCCURS_WITH edges for deep concept analysis.',
-  },
+const featureCards = [
+  { title: 'Knowledge Graph',  desc: 'A live Apache AGE graph of research concepts, built from arXiv full text.' },
+  { title: 'Trend Prediction', desc: 'A local model synthesizes emerging directions, gaps, and convergences.' },
+  { title: 'Velocity Tracking', desc: 'Concept momentum over time — centrality, velocity, acceleration.' },
+  { title: 'Paper Analysis',   desc: 'Upload your own PDFs for a personal graph and personal predictions.' },
 ]
 
 const techStack = [
@@ -135,7 +88,7 @@ async function enterDemo() {
     auth.setToken(data.access_token)
     router.push('/dashboard/graph')
   } catch {
-    // Fallback: open login modal
+    // Fallback: open the auth modal
     showLogin.value = true
   }
 }

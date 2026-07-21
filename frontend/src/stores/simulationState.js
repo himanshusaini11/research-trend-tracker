@@ -53,5 +53,18 @@ export const useSimulationStore = defineStore('simulation', () => {
     error.value   = null
   }
 
-  return { running, jobId, result, error, runSimulation, reset }
+  // Load a specific past run (from the history panel) into the results view,
+  // bypassing polling — the row already has the full result shape.
+  function loadResult(row) {
+    if (_pollTimer) {
+      clearInterval(_pollTimer)
+      _pollTimer = null
+    }
+    running.value = false
+    jobId.value   = null
+    error.value   = null
+    result.value  = row
+  }
+
+  return { running, jobId, result, error, runSimulation, reset, loadResult }
 })

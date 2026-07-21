@@ -1,47 +1,35 @@
 <template>
-  <div class="flex h-screen bg-bg overflow-hidden">
-    <!-- Sidebar -->
+  <div class="modernist" style="display: flex; height: 100vh; width: 100vw; overflow: hidden;
+              background: var(--mn-color-bg); color: var(--mn-color-text)">
     <NavBar />
 
-    <!-- Main area -->
-    <div class="flex-1 flex flex-col overflow-hidden">
+    <div style="flex: 1; display: flex; flex-direction: column; min-width: 0">
       <!-- Top bar -->
-      <header class="h-12 bg-surface border-b border-border flex items-center justify-between px-6 shrink-0">
-        <span class="text-text-muted text-sm">{{ currentTitle }}</span>
-        <div class="flex items-center gap-3">
-          <span
-            class="w-2 h-2 rounded-full"
-            :class="auth.isValid ? 'bg-accent-green' : 'bg-accent-red'"
-          />
-          <span class="text-text-muted text-xs">
-            {{ auth.isValid ? `Expires ${expiryLabel}` : 'Token expired' }}
-          </span>
-          <span v-if="auth.isDemo"
-            class="text-xs px-2 py-0.5 rounded border border-border text-text-muted">
-            demo
-          </span>
-          <button
-            @click="logout"
-            class="text-text-muted text-xs hover:text-accent-red transition-colors"
-          >
-            Sign out
-          </button>
-        </div>
-      </header>
-
-      <!-- Stats banner -->
-      <div class="bg-bg border-b border-border px-6 py-1.5 shrink-0 flex items-center gap-1.5 text-xs text-text-muted">
-        <span class="font-mono text-text-primary font-medium">145,000</span>&nbsp;papers
-        <span class="text-border mx-1">·</span>
-        <span class="font-mono text-text-primary font-medium">200</span>&nbsp;concepts
-        <span class="text-border mx-1">·</span>
-        <span class="font-mono text-text-primary font-medium">1.77M</span>&nbsp;graph edges
-        <span class="text-border mx-1">·</span>
-        <span>2022–2024</span>
+      <div style="display: flex; align-items: center; gap: 16px; padding: 14px 24px;
+                  border-bottom: 2px solid var(--mn-color-divider)">
+        <h4 style="margin: 0; flex: 1">{{ currentTitle }}</h4>
+        <span :style="`width: 7px; height: 7px; flex: none; background: ${auth.isValid ? '#5fa832' : 'var(--mn-color-accent)'}`"></span>
+        <span style="font-size: 12px; opacity: .7">
+          {{ auth.isValid ? `session valid · expires ${expiryLabel}` : 'session expired' }}
+        </span>
+        <span v-if="auth.isDemo" class="tag tag-neutral">DEMO</span>
+        <button class="btn btn-secondary" @click="logout">Sign out</button>
       </div>
 
-      <!-- Router outlet -->
-      <main class="flex-1 overflow-auto">
+      <!-- Stats banner — live from GET /graph/stats (Stage 1) -->
+      <div style="display: flex; align-items: center; gap: 22px; padding: 8px 24px; font-size: 12px;
+                  border-bottom: 2px solid var(--mn-color-divider)">
+        <template v-if="stats">
+          <span>{{ stats.total_papers.toLocaleString() }} PAPERS</span><span>/</span>
+          <span>{{ stats.concept_count.toLocaleString() }} CONCEPTS</span><span>/</span>
+          <span>{{ formattedEdges }} EDGES</span><span>/</span>
+          <span>{{ formattedRange }}</span>
+        </template>
+        <span v-else style="opacity: .5">loading…</span>
+        <span class="tag tag-outline" style="margin-left: auto">● LIVE FROM API</span>
+      </div>
+
+      <main style="flex: 1; overflow: auto">
         <RouterView />
       </main>
     </div>
@@ -49,10 +37,11 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import { useAuthStore } from '../stores/auth'
+import api from '../services/api'
 
 const auth   = useAuthStore()
 const route  = useRoute()
@@ -61,19 +50,46 @@ const router = useRouter()
 const titles = {
   '/dashboard/graph':       'Knowledge Graph',
   '/dashboard/predictions': 'Prediction Report',
-  '/dashboard/velocity':    'Velocity Chart',
+  '/dashboard/velocity':    'Velocity',
+  '/dashboard/simulation':  'ARIS Simulation',
   '/dashboard/upload':      'Upload Papers',
   '/dashboard/admin':       'Admin Panel',
 }
 
-const currentTitle = computed(() => titles[route.path] ?? 'Research Trend Tracker')
+const currentTitle = computed(() => titles[route.path] ?? 'Aletheia')
 
 const expiryLabel = computed(() => {
   if (!auth.expiresAt) return ''
-  return auth.expiresAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const mins = Math.max(0, Math.round((auth.expiresAt.getTime() - Date.now()) / 60000))
+  return `${mins}m`
 })
+
+const stats = ref(null)
+
+const formattedEdges = computed(() => {
+  if (!stats.value) return ''
+  const n = stats.value.edge_count
+  return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n.toLocaleString()
+})
+
+const formattedRange = computed(() => {
+  if (!stats.value?.date_range_start || !stats.value?.date_range_end) return '—'
+  const startYear = new Date(stats.value.date_range_start).getFullYear()
+  const endYear   = new Date(stats.value.date_range_end).getFullYear()
+  return startYear === endYear ? `${startYear}` : `${startYear}–${endYear}`
+})
+
+async function loadStats() {
+  try {
+    stats.value = await api.getGraphStats()
+  } catch {
+    // Stats banner degrades to "loading…" indefinitely on failure — non-critical, no error UI needed
+  }
+}
 
 function logout() {
   auth.logout(router)
 }
+
+onMounted(loadStats)
 </script>

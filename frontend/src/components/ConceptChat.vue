@@ -1,77 +1,59 @@
 <template>
-  <div class="bg-bg border border-border rounded-lg overflow-hidden">
-    <div class="px-3 py-2 border-b border-border flex items-center justify-between">
-      <span class="text-text-muted text-xs uppercase tracking-wider">Ask AI about this concept</span>
-      <div class="flex items-center gap-2">
+  <div class="modernist" style="display: flex; flex-direction: column; gap: 8px; padding: 12px;
+              background: var(--mn-color-surface); flex: 1; min-height: 0">
+    <div style="display: flex; align-items: center; justify-content: space-between">
+      <h6 style="margin: 0; opacity: .7">ASK ABOUT THIS CONCEPT</h6>
+      <div style="display: flex; align-items: center; gap: 8px">
         <button
-          @click="thinkingMode = !thinkingMode"
+          class="btn btn-ghost" style="padding: 2px 8px; font-size: 11px"
           :title="thinkingMode ? 'Thinking mode ON — click to disable' : 'Enable thinking mode'"
-          :class="[
-            'text-[10px] px-2 py-0.5 rounded border transition-colors',
-            thinkingMode
-              ? 'border-accent-blue/60 text-accent-blue bg-accent-blue/10'
-              : 'border-border text-text-muted/50 hover:text-text-muted',
-          ]"
-        >💭 Think</button>
-        <span class="text-text-muted/50 text-[10px]">qwen3.5:27b</span>
+          @click="thinkingMode = !thinkingMode"
+        >{{ thinkingMode ? '💭 Think: ON' : '💭 Think' }}</button>
+        <span style="opacity: .4; font-size: 10px">qwen3.5:27b</span>
       </div>
     </div>
 
     <!-- Message thread -->
-    <div ref="messagesEl" class="overflow-y-auto p-3 space-y-2" style="max-height: 280px">
+    <div ref="messagesEl" style="overflow-y: auto; display: flex; flex-direction: column; gap: 8px; flex: 1; min-height: 0">
       <div v-for="msg in messages" :key="msg.id">
-        <!-- Thinking block (collapsible) -->
-        <div v-if="msg.thinking" class="mb-1">
+        <div v-if="msg.thinking" style="margin-bottom: 4px">
           <button
+            style="font-size: 10px; opacity: .55; background: none; border: none; cursor: pointer;
+                   padding: 0; color: var(--mn-color-text); display: flex; align-items: center; gap: 4px"
             @click="msg.thinkOpen = !msg.thinkOpen"
-            class="text-[10px] text-text-muted/50 hover:text-text-muted flex items-center gap-1 transition-colors"
           >
             <span>{{ msg.thinkOpen ? '▾' : '▸' }}</span>
             <span>Reasoning ({{ msg.thinking.length }} chars)</span>
           </button>
           <div v-if="msg.thinkOpen"
-            class="mt-1 text-[10px] text-text-muted/70 bg-surface border border-border/50
-                   rounded px-2 py-2 leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">
+            style="font-size: 10px; opacity: .55; border-left: 2px solid var(--mn-color-divider);
+                   padding-left: 8px; margin-top: 4px; white-space: pre-wrap; max-height: 160px; overflow-y: auto">
             {{ msg.thinking }}
           </div>
         </div>
-        <!-- Message bubble -->
-        <div :class="msg.role === 'user' ? 'flex justify-end' : 'flex justify-start'">
-          <div :class="[
-            'text-xs rounded-lg px-3 py-2 max-w-[85%] leading-relaxed text-text-primary',
-            msg.role === 'user'
-              ? 'bg-accent-blue/10 border border-accent-blue/20'
-              : 'bg-bg border border-border',
-          ]">{{ msg.content }}</div>
+        <div :style="msg.role === 'user' ? 'display: flex; justify-content: flex-end' : 'display: flex; justify-content: flex-start'">
+          <div :style="msg.role === 'user'
+            ? 'align-self: flex-end; max-width: 88%; padding: 8px 10px; background: var(--mn-color-accent-100); color: var(--mn-color-accent-800); font-size: 12px; line-height: 1.5'
+            : 'max-width: 88%; padding: 8px 10px; background: var(--mn-color-bg); font-size: 12px; line-height: 1.5'"
+          >{{ msg.content }}</div>
         </div>
       </div>
 
-      <!-- Thinking indicator -->
-      <div v-if="loading" class="flex justify-start">
-        <div class="text-text-muted text-xs rounded-lg px-3 py-2 bg-bg border border-border">
-          <span class="animate-pulse">{{ thinkingMode ? 'Thinking…' : 'Answering…' }}</span>
+      <div v-if="loading" style="display: flex; justify-content: flex-start">
+        <div style="padding: 8px 10px; background: var(--mn-color-bg); font-size: 12px; opacity: .6">
+          {{ thinkingMode ? 'Thinking…' : 'Answering…' }}
         </div>
       </div>
     </div>
 
     <!-- Input row -->
-    <div class="border-t border-border px-3 py-2 flex gap-2">
+    <div style="display: flex; gap: 8px; margin-top: auto">
       <input
-        ref="inputEl"
-        v-model="inputText"
-        type="text"
-        placeholder="Ask a question…"
-        class="flex-1 bg-surface border border-border text-text-primary text-xs rounded px-3 py-1.5
-               focus:outline-none focus:border-accent-blue placeholder:text-text-muted/50"
+        ref="inputEl" v-model="inputText" type="text" class="input" style="flex: 1"
+        placeholder="Ask a question…" :disabled="loading"
         @keydown.enter.prevent="sendMessage"
-        :disabled="loading"
       />
-      <button
-        @click="sendMessage"
-        :disabled="loading || !inputText.trim()"
-        class="text-xs px-3 py-1.5 bg-accent-blue text-bg rounded font-medium
-               hover:bg-blue-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
-      >Ask</button>
+      <button class="btn btn-primary" :disabled="loading || !inputText.trim()" @click="sendMessage">Ask</button>
     </div>
   </div>
 </template>
@@ -123,7 +105,7 @@ async function sendMessage() {
             role:    'system',
             content: props.systemPrompt ??
               `You are a research assistant explaining AI/ML research concepts. \
-The user is exploring a knowledge graph built from 145,000 academic papers published between 2022 and 2024. \
+The user is exploring a knowledge graph built from academic papers. \
 Be concise (max 3 sentences), accurate, and mention research trends when relevant. \
 Current concept: "${props.conceptName}"`,
           },

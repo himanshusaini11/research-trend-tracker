@@ -1,39 +1,15 @@
 <template>
-  <div class="bg-surface border border-border rounded-lg mb-3 overflow-hidden">
-    <button
-      @click="open = !open"
-      class="w-full text-left px-4 py-3 flex items-start justify-between gap-2
-             hover:bg-bg/50 transition-colors"
-    >
-      <span class="text-text-primary text-sm font-medium leading-snug">{{ title }}</span>
-      <div class="flex items-center gap-2 shrink-0">
-        <span
-          v-if="badge"
-          :class="badgeClass"
-          :style="badgeStyle"
-          class="text-xs px-1.5 py-0.5 rounded font-medium"
-        >
-          {{ badge }}
-        </span>
-        <span class="text-text-muted text-xs">{{ open ? '▲' : '▼' }}</span>
-      </div>
-    </button>
-    <div v-show="open" class="px-4 pb-3">
-      <p class="text-text-muted text-xs leading-relaxed">{{ body }}</p>
-    </div>
+  <div class="modernist" style="margin-bottom: 12px">
+    <strong style="display: block; margin-bottom: 2px; font-size: 13px; font-family: var(--mn-font-heading); font-weight: 700">
+      {{ title }}
+    </strong>
+    <span style="opacity: .75; font-size: 13px">{{ body }}</span>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-
 defineProps({
-  title:      { type: String,  required: true },
-  body:       { type: String,  default: '' },
-  badge:      { type: String,  default: '' },
-  badgeClass: { type: String,  default: '' },
-  badgeStyle: { type: Object,  default: () => ({}) },
+  title: { type: String, required: true },
+  body:  { type: String, default: '' },
 })
-
-const open = ref(false)
 </script>

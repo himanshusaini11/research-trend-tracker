@@ -1,117 +1,76 @@
 <template>
-  <div class="h-full overflow-auto bg-bg">
-    <div class="max-w-3xl mx-auto px-6 py-8 space-y-6">
+  <div class="modernist" style="height: 100%; overflow: auto; background: var(--mn-color-bg); padding: 24px">
 
-      <!-- Demo locked state -->
-      <div v-if="auth.isDemo"
-        class="bg-surface border border-border rounded-xl p-10 flex flex-col items-center text-center gap-4">
-        <div class="text-4xl">🔒</div>
-        <h2 class="text-text-primary font-semibold">Sign in to upload your papers</h2>
-        <p class="text-text-muted text-sm max-w-xs">
-          Create a free account to upload PDFs and build your personal research knowledge graph.
-        </p>
-        <button @click="$router.push('/')"
-          class="px-6 py-2 bg-accent-blue text-bg text-sm font-medium rounded-lg
-                 hover:bg-blue-400 transition-colors">
-          Sign in / Register
-        </button>
+    <!-- Demo locked state -->
+    <div v-if="auth.isDemo" style="padding: 48px; text-align: center; background: var(--mn-color-surface)">
+      <div style="width: 32px; height: 32px; border: 2px solid var(--mn-color-divider); margin: 0 auto 16px"></div>
+      <p style="margin-bottom: 16px">Upload is disabled for the read-only demo role.</p>
+      <button class="btn btn-primary" @click="$router.push('/')">Sign in / Register</button>
+    </div>
+
+    <template v-else>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 20px">
+        <h3 style="margin: 0">Upload Papers</h3>
+        <span class="tag tag-outline">{{ lifetimeUsed }} / 30 lifetime · {{ 30 - lifetimeUsed }} remaining</span>
       </div>
 
-      <template v-else>
-        <!-- Header + quota -->
-        <div class="flex items-start justify-between">
-          <div>
-            <h1 class="text-text-primary font-semibold text-lg">Upload Papers</h1>
-            <p class="text-text-muted text-xs mt-0.5">Extract concepts from your own research PDFs</p>
-          </div>
-          <div class="text-right">
-            <div class="text-text-muted text-xs uppercase tracking-wider mb-1">Lifetime uploads</div>
-            <div class="text-text-primary font-mono font-semibold text-xl">
-              {{ lifetimeUsed }} <span class="text-text-muted text-sm font-normal">/ 30</span>
-            </div>
-            <div class="text-text-muted text-[10px] mt-0.5">{{ 30 - lifetimeUsed }} remaining</div>
-          </div>
+      <!-- Upload zone -->
+      <div
+        style="border: 2px dashed var(--mn-color-divider); padding: 48px; text-align: center; margin-bottom: 24px; cursor: pointer"
+        @dragover.prevent="dragging = true"
+        @dragleave.prevent="dragging = false"
+        @drop.prevent="onDrop"
+        @click="fileInput?.click()"
+        :style="dragging ? { borderColor: 'var(--mn-color-accent)' } : {}"
+      >
+        <input ref="fileInput" type="file" accept=".pdf" style="display: none" @change="onFileSelect" />
+        <p style="margin-bottom: 6px">Drag and drop PDFs here, or click to browse</p>
+        <p style="opacity: .55; font-size: 12px; margin: 0">PDF only · 20MB max · up to 10 active files</p>
+      </div>
+
+      <p v-if="uploadError" style="color: var(--mn-color-accent-700); font-size: 13px; margin-top: -16px; margin-bottom: 16px">{{ uploadError }}</p>
+
+      <!-- Upload progress -->
+      <div v-if="uploading" style="margin-bottom: 24px">
+        <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px">
+          <span>{{ pendingFilename }}</span><span>{{ uploadProgress }}%</span>
         </div>
-
-        <!-- Upload zone -->
-        <div
-          @dragover.prevent="dragging = true"
-          @dragleave.prevent="dragging = false"
-          @drop.prevent="onDrop"
-          @click="fileInput?.click()"
-          :class="[
-            'border-2 border-dashed rounded-xl px-6 py-10 flex flex-col items-center gap-3 cursor-pointer transition-colors',
-            dragging ? 'border-accent-blue bg-accent-blue/5' : 'border-border hover:border-accent-blue/50',
-          ]"
-        >
-          <input ref="fileInput" type="file" accept=".pdf" class="hidden" @change="onFileSelect" />
-          <div class="text-3xl select-none">📄</div>
-          <div class="text-text-primary text-sm font-medium">
-            Drop a PDF here or click to browse
-          </div>
-          <div class="text-text-muted text-xs">Max 20 MB · PDF only · Up to 10 active files</div>
+        <div style="height: 6px; background: var(--mn-color-neutral-200)">
+          <div :style="{ height: '100%', width: uploadProgress + '%', background: 'var(--mn-color-accent)' }"></div>
         </div>
+      </div>
 
-        <!-- Validation error -->
-        <p v-if="uploadError" class="text-accent-red text-xs -mt-2">{{ uploadError }}</p>
-
-        <!-- Upload progress -->
-        <div v-if="uploading"
-          class="bg-surface border border-border rounded-xl px-5 py-4 flex items-center gap-4">
-          <div class="flex-1">
-            <div class="text-text-primary text-xs font-medium mb-1.5">{{ pendingFilename }}</div>
-            <div class="h-1.5 bg-bg rounded-full overflow-hidden">
-              <div class="h-full bg-accent-blue rounded-full transition-all duration-300"
-                :style="{ width: uploadProgress + '%' }" />
-            </div>
+      <!-- Active jobs -->
+      <template v-if="activeJobs.length">
+        <h6 style="opacity: .6; margin-bottom: 10px">PROCESSING</h6>
+        <div style="margin-bottom: 24px; display: flex; flex-direction: column; gap: 6px">
+          <div v-for="job in activeJobs" :key="job.job_id" style="display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--mn-color-surface)">
+            <span :style="{ width: '7px', height: '7px', flex: 'none', background: statusDotColor(job.status) }"></span>
+            <span style="flex: 1; font-size: 12px; opacity: .7">{{ job.job_id.slice(0, 8) }}…</span>
+            <span style="opacity: .7; font-size: 12px">{{ job.status }}</span>
           </div>
-          <span class="text-text-muted text-xs font-mono">{{ uploadProgress }}%</span>
-        </div>
-
-        <!-- Active jobs -->
-        <div v-if="activeJobs.length" class="space-y-2">
-          <div class="text-text-muted text-xs uppercase tracking-wider">Processing</div>
-          <div v-for="job in activeJobs" :key="job.job_id"
-            class="bg-surface border border-border rounded-lg px-4 py-3 flex items-center gap-3">
-            <span :class="statusDot(job.status)" class="w-2 h-2 rounded-full shrink-0" />
-            <span class="text-text-muted text-xs flex-1 font-mono">{{ job.job_id.slice(0, 8) }}…</span>
-            <span :class="statusLabel(job.status)"
-              class="text-[10px] uppercase tracking-wider font-medium">
-              {{ job.status }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Processed papers list -->
-        <div v-if="papers.length" class="bg-surface border border-border rounded-xl overflow-hidden">
-          <div class="px-5 py-3 border-b border-border flex items-center justify-between">
-            <span class="text-text-primary text-sm font-medium">Your Papers</span>
-            <button @click="exportData"
-              class="text-[10px] text-accent-blue hover:underline uppercase tracking-wider">
-              Export JSON ↓
-            </button>
-          </div>
-          <div v-for="(p, i) in papers" :key="p.id"
-            :class="['px-5 py-3 flex items-center gap-3', i < papers.length - 1 ? 'border-b border-border/50' : '']">
-            <span :class="statusDot(p.status)" class="w-2 h-2 rounded-full shrink-0" />
-            <span class="text-text-primary text-xs flex-1 truncate" :title="p.filename">{{ p.filename }}</span>
-            <span v-if="p.status === 'processed'" class="text-text-muted text-[10px] font-mono whitespace-nowrap">
-              {{ p.concept_count }} concepts
-            </span>
-            <span :class="statusLabel(p.status)" class="text-[10px] uppercase tracking-wider font-medium whitespace-nowrap">
-              {{ p.status }}
-            </span>
-          </div>
-        </div>
-
-        <!-- Empty state -->
-        <div v-else-if="!uploading && !activeJobs.length"
-          class="text-center text-text-muted text-sm py-4">
-          No papers uploaded yet. Drop a PDF above to get started.
         </div>
       </template>
 
-    </div>
+      <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 10px">
+        <h6 style="opacity: .6; margin: 0">YOUR PAPERS</h6>
+        <button class="btn btn-ghost" @click="exportData">Export JSON ↓</button>
+      </div>
+
+      <p v-if="!papers.length" style="opacity: .6">Nothing uploaded yet.</p>
+      <table v-else class="table">
+        <thead><tr><th></th><th>Filename</th><th>Concepts</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr v-for="p in papers" :key="p.id">
+            <td><span :style="{ width: '7px', height: '7px', display: 'inline-block', background: statusDotColor(p.status) }"></span></td>
+            <td>{{ p.filename }}</td>
+            <td>{{ p.status === 'processed' ? p.concept_count : '—' }}</td>
+            <td>{{ p.status }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </template>
+
   </div>
 </template>
 
@@ -134,25 +93,17 @@ const lifetimeUsed = ref(0)
 
 let pollTimer = null
 
-// ── Status helpers ─────────────────────────────────────────────────────────
-function statusDot(s) {
+// Status dot colors — same literal palette as the design (#5fa832 for
+// success, matching the Dashboard session-status dot), accent for active
+// states, mono-accent tokens for the rest since there's no separate red/gray.
+function statusDotColor(s) {
   return {
-    pending:    'bg-accent-gray',
-    processing: 'bg-accent-blue animate-pulse',
-    processed:  'bg-accent-green',
-    complete:   'bg-accent-green',
-    failed:     'bg-accent-red',
-  }[s] ?? 'bg-accent-gray'
-}
-
-function statusLabel(s) {
-  return {
-    pending:    'text-text-muted',
-    processing: 'text-accent-blue',
-    processed:  'text-accent-green',
-    complete:   'text-accent-green',
-    failed:     'text-accent-red',
-  }[s] ?? 'text-text-muted'
+    pending:    'var(--mn-color-neutral-500)',
+    processing: 'var(--mn-color-accent)',
+    processed:  '#5fa832',
+    complete:   '#5fa832',
+    failed:     'var(--mn-color-accent-2-500)',
+  }[s] ?? 'var(--mn-color-neutral-500)'
 }
 
 // ── File handling ──────────────────────────────────────────────────────────

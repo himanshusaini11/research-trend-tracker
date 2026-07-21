@@ -1,0 +1,351 @@
+/* ══════════════════════════════════════════════════════════════════════
+   Modernist design system — ported from ui/design_handoff_research_
+   intelligence_platform/modernist.css, with two changes for safe,
+   additive rollout alongside the existing (soon-to-be-replaced) theme:
+
+   1. All custom properties are prefixed --mn- so they never collide with
+      the current --color-bg/--color-surface/etc tokens in style.css.
+   2. Every component/base rule is scoped under a .modernist ancestor
+      class, so none of it applies to the app until a view is actually
+      migrated and wrapped in that class (Stage 2+). Until then this file
+      is inert dead weight — safe to import globally right now.
+
+   Dark-theme values ([data-theme="dark"] .modernist block) are NOT in
+   the original handoff (modernist.css only ships a light palette) —
+   they're derived here on the same OKLCH methodology: same hues per
+   ramp, same chroma-per-lightness-step pattern, lightness direction
+   reversed for a dark ground. See oklch_dark.py derivation notes in the
+   PR/commit for the working-out.
+   ══════════════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap');
+
+:root {
+  /* Tells the browser to render native form controls (select dropdown
+     popups, checkboxes, scrollbars) with light OS-native theming — without
+     this, browsers default to light regardless of page CSS, which is why
+     the Simulation view's "Max rounds" <select> popup showed blue/black
+     native styling that clashed with the dark theme. */
+  color-scheme: light;
+
+  --mn-color-bg: #f3f2f2;
+  --mn-color-surface: #eae9e9;
+  --mn-color-text: #201e1d;
+  --mn-color-accent: #ec3013;
+  --mn-color-accent-2: #e15b47;
+  --mn-color-divider: color-mix(in srgb, #201e1d 40%, transparent);
+
+  --mn-color-neutral-100: #f8f4f4;
+  --mn-color-neutral-200: #eae7e7;
+  --mn-color-neutral-300: #d7d3d3;
+  --mn-color-neutral-400: #bab6b6;
+  --mn-color-neutral-500: #9b9797;
+  --mn-color-neutral-600: #7d7979;
+  --mn-color-neutral-700: #605d5d;
+  --mn-color-neutral-800: #444141;
+  --mn-color-neutral-900: #2d2b2b;
+
+  --mn-color-accent-100: #fff2ef;
+  --mn-color-accent-200: #ffe0d9;
+  --mn-color-accent-300: #ffc4b8;
+  --mn-color-accent-400: #ff9783;
+  --mn-color-accent-500: #ff563c;
+  --mn-color-accent-600: #dd2b0f;
+  --mn-color-accent-700: #ae1800;
+  --mn-color-accent-800: #7c1405;
+  --mn-color-accent-900: #4d170e;
+
+  --mn-color-accent-2-100: #fff2ef;
+  --mn-color-accent-2-200: #ffe0da;
+  --mn-color-accent-2-300: #ffc4b9;
+  --mn-color-accent-2-400: #ff9784;
+  --mn-color-accent-2-500: #ef6853;
+  --mn-color-accent-2-600: #c94b39;
+  --mn-color-accent-2-700: #9e3526;
+  --mn-color-accent-2-800: #71261b;
+  --mn-color-accent-2-900: #471d16;
+
+  --mn-font-heading: "Archivo", system-ui, sans-serif;
+  --mn-font-heading-weight: 800;
+  --mn-font-body: "Archivo", system-ui, sans-serif;
+
+  --mn-space-1: 4.0px;
+  --mn-space-2: 8.0px;
+  --mn-space-3: 12.0px;
+  --mn-space-4: 16.0px;
+  --mn-space-6: 24.0px;
+  --mn-space-8: 32.0px;
+
+  --mn-radius-sm: 0px;
+  --mn-radius-md: 0px;
+  --mn-radius-lg: 0px;
+
+  --mn-shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --mn-shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  --mn-shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+}
+
+/* Dark theme — derived, not in the original handoff. Same hues (H) per
+   ramp as light; lightness (L) direction reversed for a dark ground:
+   100 = darkest/near-bg tint, 900 = lightest/text-contrast. Accent base
+   picked at its ramp's 500-step, which lands at a vivid, well-contrasted
+   point against the dark ground without a separate chroma boost. */
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --mn-color-bg: #080707;
+  --mn-color-surface: #1f1c1c;
+  --mn-color-text: #edeae9;
+  --mn-color-accent: #df351c;
+  --mn-color-accent-2: #d04b38;
+  --mn-color-divider: color-mix(in srgb, #edeae9 40%, transparent);
+
+  --mn-color-neutral-100: #0b0808;
+  --mn-color-neutral-200: #211f1f;
+  --mn-color-neutral-300: #403c3c;
+  --mn-color-neutral-400: #5f5b5b;
+  --mn-color-neutral-500: #817d7d;
+  --mn-color-neutral-600: #a4a0a0;
+  --mn-color-neutral-700: #c4c1c1;
+  --mn-color-neutral-800: #dbd7d7;
+  --mn-color-neutral-900: #eae7e7;
+
+  --mn-color-accent-100: #0f0705;
+  --mn-color-accent-200: #301813;
+  --mn-color-accent-300: #612b21;
+  --mn-color-accent-400: #9f311f;
+  --mn-color-accent-500: #df351c;
+  --mn-color-accent-600: #ff5d42;
+  --mn-color-accent-700: #ff8e74;
+  --mn-color-accent-800: #ffb49f;
+  --mn-color-accent-900: #ffd4c5;
+
+  --mn-color-accent-2-100: #0f0706;
+  --mn-color-accent-2-200: #2e1915;
+  --mn-color-accent-2-300: #5d2e26;
+  --mn-color-accent-2-400: #973a2b;
+  --mn-color-accent-2-500: #d04b38;
+  --mn-color-accent-2-600: #f6745f;
+  --mn-color-accent-2-700: #ff9d89;
+  --mn-color-accent-2-800: #ffbead;
+  --mn-color-accent-2-900: #ffd8cd;
+
+  /* Shadows read as elevation via pure-black ink even on a dark ground —
+     it's still darker than any surface/bg step in this palette. */
+  --mn-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --mn-shadow-md: 0 3px 10px rgba(0, 0, 0, 0.45);
+  --mn-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.55);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   Component classes — scoped under .modernist so nothing here affects
+   the app until a view opts in.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.modernist {
+  font-family: var(--mn-font-body);
+  color: var(--mn-color-text);
+  background: var(--mn-color-bg);
+  font-size: 15px;
+  line-height: 1.55;
+  font-weight: 400;
+}
+.modernist *, .modernist *::before, .modernist *::after { box-sizing: border-box; }
+
+.modernist h1, .modernist h2, .modernist h3,
+.modernist h4, .modernist h5, .modernist h6 {
+  font-family: var(--mn-font-heading); font-weight: var(--mn-font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--mn-space-2);
+}
+.modernist h1 { font-size: 42px; }
+.modernist h2 { font-size: 32px; }
+.modernist h3 { font-size: 25px; }
+.modernist h4 { font-size: 20px; }
+.modernist h5 { font-size: 16px; }
+.modernist h6 { font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; }
+.modernist p { margin: 0 0 var(--mn-space-3); }
+.modernist a { color: var(--mn-color-accent); text-underline-offset: 3px; }
+.modernist img { display: block; max-width: 100%; }
+.modernist figure { margin: 0; }
+.modernist figcaption {
+  font-size: 11px; margin-top: var(--mn-space-1);
+  color: color-mix(in srgb, var(--mn-color-text) 55%, transparent);
+}
+.modernist .text-muted { color: color-mix(in srgb, var(--mn-color-text) 55%, transparent); }
+.modernist :focus { outline: none; }
+.modernist :focus-visible { outline: 2px solid var(--mn-color-accent); outline-offset: 2px; }
+.modernist ::selection { background: color-mix(in srgb, var(--mn-color-accent) 30%, transparent); }
+
+/* — rules — */
+.modernist .hr {
+  height: 2px; border: 0; margin: var(--mn-space-4) 0;
+  background: var(--mn-color-divider);
+}
+
+/* — buttons — */
+.modernist .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--mn-font-heading); font-weight: var(--mn-font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--mn-color-text);
+  background: transparent; border: 1px solid transparent;
+  padding: var(--mn-space-2) calc(var(--mn-space-3) * 1.2);
+  border-radius: var(--mn-radius-md);
+}
+.modernist .btn svg { display: block; }
+.modernist .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.modernist .btn-primary { background: var(--mn-color-accent); color: var(--mn-color-bg); }
+.modernist .btn-primary:hover { background: var(--mn-color-accent-600); }
+.modernist .btn-primary:active { background: var(--mn-color-accent-700); }
+.modernist .btn-secondary { border-color: var(--mn-color-divider); }
+.modernist .btn-secondary:hover { background: color-mix(in srgb, var(--mn-color-text) 7%, transparent); }
+.modernist .btn-secondary:active { background: color-mix(in srgb, var(--mn-color-text) 14%, transparent); }
+.modernist .btn-ghost { color: var(--mn-color-accent); padding-inline: var(--mn-space-1); }
+.modernist .btn-ghost:hover { background: color-mix(in srgb, var(--mn-color-accent) 10%, transparent); }
+.modernist .btn-ghost:active { background: color-mix(in srgb, var(--mn-color-accent) 18%, transparent); }
+.modernist .btn-icon { width: 36px; height: 36px; padding: 0; }
+.modernist .btn-block { width: 100%; margin-top: var(--mn-space-2); justify-content: flex-start; text-align: left; }
+
+/* — forms — */
+.modernist .field > label {
+  display: block; font-size: 12px; margin-bottom: 5px;
+  color: color-mix(in srgb, var(--mn-color-text) 70%, transparent);
+}
+.modernist .input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--mn-color-text); caret-color: var(--mn-color-accent);
+  background: var(--mn-color-surface);
+  border: 1px solid var(--mn-color-divider); border-radius: var(--mn-radius-md);
+}
+.modernist .input:hover { border-color: color-mix(in srgb, var(--mn-color-text) 45%, transparent); }
+.modernist .input:focus-visible { border-color: var(--mn-color-accent); outline-offset: 0; }
+.modernist textarea.input { min-height: 90px; resize: vertical; }
+.modernist .radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+.modernist .radio input, .modernist .seg-opt input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.modernist .radio .dot {
+  width: 16px; height: 16px; flex: none; border-radius: 50%;
+  border: 1.5px solid var(--mn-color-divider);
+}
+.modernist .radio:hover .dot { border-color: var(--mn-color-accent); }
+.modernist .radio input:checked + .dot {
+  border-color: var(--mn-color-accent); background: var(--mn-color-accent);
+  box-shadow: inset 0 0 0 4px var(--mn-color-bg);
+}
+.modernist .radio input:focus-visible + .dot { outline: 2px solid var(--mn-color-accent); outline-offset: 2px; }
+.modernist .seg {
+  display: inline-flex; overflow: hidden;
+  border: 1px solid var(--mn-color-divider); border-radius: var(--mn-radius-md);
+}
+.modernist .seg-opt {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; font-size: 13px; cursor: pointer;
+}
+.modernist .seg-opt + .seg-opt { border-left: 1px solid var(--mn-color-divider); }
+.modernist .seg-opt:has(input:checked) { background: var(--mn-color-accent); color: var(--mn-color-bg); }
+.modernist .seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--mn-color-text) 7%, transparent); }
+.modernist .seg-opt:has(input:focus-visible) { outline: 2px solid var(--mn-color-accent); outline-offset: -2px; }
+
+/* — cards — */
+.modernist .card {
+  display: flex; flex-direction: column; gap: var(--mn-space-2);
+  padding: var(--mn-space-3); border-radius: var(--mn-radius-md); background: var(--mn-color-surface);
+}
+.modernist .card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--mn-color-accent); }
+.modernist .card-title {
+  font-family: var(--mn-font-heading); font-weight: var(--mn-font-heading-weight);
+  font-size: 17px; line-height: 1.2;
+}
+.modernist .card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+.modernist .card-meta {
+  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  color: color-mix(in srgb, var(--mn-color-text) 50%, transparent);
+}
+.modernist .elev-sm { box-shadow: var(--mn-shadow-sm); }
+.modernist .elev-md { box-shadow: var(--mn-shadow-md); }
+.modernist .elev-lg { box-shadow: var(--mn-shadow-lg); }
+
+/* — tags — */
+.modernist .tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: calc(var(--mn-radius-md) * 0.75);
+}
+.modernist .tag-accent { background: var(--mn-color-accent-100); color: var(--mn-color-accent-800); }
+.modernist .tag-accent-2 { background: var(--mn-color-accent-2-100); color: var(--mn-color-accent-2-800); }
+.modernist .tag-neutral { background: var(--mn-color-neutral-100); color: var(--mn-color-neutral-800); }
+.modernist .tag-outline { border: 1px solid var(--mn-color-accent); color: var(--mn-color-accent); }
+
+/* — navigation — */
+.modernist .nav {
+  display: flex; align-items: center; gap: var(--mn-space-4);
+  padding: var(--mn-space-3) var(--mn-space-4);
+  border-bottom: 2px solid var(--mn-color-divider);
+}
+.modernist .nav-brand {
+  font-family: var(--mn-font-heading); font-weight: var(--mn-font-heading-weight);
+  font-size: 18px; margin-right: auto;
+}
+.modernist .nav a { color: inherit; text-decoration: none; font-size: 14px; }
+.modernist .nav a:hover, .modernist .nav a[aria-current='page'] { color: var(--mn-color-accent); }
+
+/* — tables — */
+.modernist .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.modernist .table th {
+  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--mn-color-text) 60%, transparent);
+  padding: var(--mn-space-2); border-bottom: 2px solid var(--mn-color-divider);
+}
+.modernist .table td {
+  padding: var(--mn-space-2);
+  border-bottom: 1px solid var(--mn-color-divider);
+}
+.modernist .table tbody tr:hover { background: color-mix(in srgb, var(--mn-color-text) 4%, transparent); }
+
+/* — dialog — */
+.modernist .dialog-backdrop {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: var(--mn-space-4);
+  background: color-mix(in srgb, var(--mn-color-neutral-900) 50%, transparent);
+}
+.modernist .dialog {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--mn-space-3);
+  padding: var(--mn-space-4); border-radius: var(--mn-radius-lg);
+  background: var(--mn-color-surface); box-shadow: var(--mn-shadow-lg);
+}
+.modernist .dialog-title {
+  font-family: var(--mn-font-heading); font-weight: var(--mn-font-heading-weight);
+  font-size: 20px;
+}
+.modernist .dialog-body { font-size: 14px; opacity: 0.85; }
+.modernist .dialog-actions { display: flex; justify-content: flex-end; gap: var(--mn-space-2); margin-top: var(--mn-space-2); }
+
+/* ══════════════════════════════════════════════════════════════════════
+   Extra utility classes from the prototype (pill, navlink, statcell,
+   accordion, skeleton loader) — same .modernist scoping.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.modernist .pill {
+  display: inline-flex; align-items: center; padding: 5px 12px;
+  border: 1px solid var(--mn-color-divider); font-size: 12px; letter-spacing: .02em;
+}
+.modernist .navlink {
+  display: flex; align-items: center; gap: 10px; padding: 9px 10px;
+  font-size: 13.5px; text-decoration: none; cursor: pointer; border: none;
+  background: transparent; font-family: var(--mn-font-body); width: 100%; text-align: left;
+}
+.modernist .statcell { padding: 10px 12px; background: var(--mn-color-surface); }
+.modernist .acc-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; cursor: pointer;
+  font-family: var(--mn-font-heading); font-weight: var(--mn-font-heading-weight);
+}
+.modernist .acc-body { padding: 0 16px 16px; font-size: 13.5px; opacity: .85; }
+.modernist .skel {
+  background: linear-gradient(90deg, var(--mn-color-neutral-200), var(--mn-color-neutral-100), var(--mn-color-neutral-200));
+  background-size: 200% 100%;
+  animation: mn-skel 1.3s ease-in-out infinite;
+}
+@keyframes mn-skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+.modernist ::placeholder { color: var(--mn-color-neutral-500); }
