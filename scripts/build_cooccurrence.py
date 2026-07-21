@@ -1,7 +1,8 @@
-"""Build CO_OCCURS_WITH edges for all papers in the AGE graph.
+"""Build CO_OCCURS_WITH edges for papers in the AGE graph.
 
-Iterates all papers with MENTIONS edges and calls build_concept_cooccurrence()
-per paper in batches. Safe to re-run — AGE MERGE is idempotent.
+Only processes papers where cooccurrence_processed_at IS NULL, so it is safe
+and cheap to re-run — it will only touch papers that haven't been covered yet
+(e.g. new papers added since the last run), not the full corpus each time.
 
 Usage:
     uv run python scripts/build_cooccurrence.py
@@ -15,7 +16,9 @@ from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import select
+from datetime import UTC, datetime
+
+from sqlalchemy import select, update
 
 from app.core.database import AsyncSessionLocal
 from app.core.logger import get_logger
@@ -28,11 +31,18 @@ _BATCH_SIZE = 500
 
 
 async def main() -> None:
-    # Load all arxiv_ids (only need the ID, not the full Paper object)
+    # Only load papers not yet covered (idempotent, same pattern as graph_processed_at)
     async with AsyncSessionLocal() as session:
-        rows = (await session.execute(select(Paper.arxiv_id))).scalars().all()
+        rows = (
+            await session.execute(
+                select(Paper.arxiv_id).where(Paper.cooccurrence_processed_at.is_(None))
+            )
+        ).scalars().all()
     arxiv_ids = list(rows)
     total = len(arxiv_ids)
+    if total == 0:
+        print("No unprocessed papers found — CO_OCCURS_WITH is already up to date.")
+        return
     print(f"Building CO_OCCURS_WITH edges for {total:,} papers (batch size {_BATCH_SIZE})…")
 
     done = 0
@@ -45,6 +55,11 @@ async def main() -> None:
             await builder.setup()
             for arxiv_id in batch:
                 await builder.build_concept_cooccurrence(arxiv_id)
+            await session.execute(
+                update(Paper)
+                .where(Paper.arxiv_id.in_(batch))
+                .values(cooccurrence_processed_at=datetime.now(UTC))
+            )
             await session.commit()
 
         done += len(batch)

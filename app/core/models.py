@@ -33,6 +33,9 @@ class Paper(Base):
     graph_processed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, default=None
     )
+    cooccurrence_processed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
 
     __table_args__ = (Index("ix_papers_categories", "categories", postgresql_using="gin"),)
 
