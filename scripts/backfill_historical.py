@@ -39,6 +39,9 @@ def _batched(items: list, size: int):  # type: ignore[type-arg]
         yield items[i : i + size]
 
 
+_MAX_PAGES_PER_WINDOW = 20  # safety ceiling: 20 × 500 = 10,000 papers/category/window
+
+
 async def _fetch_date_range(
     categories: list[str],
     start_date: datetime,
@@ -46,7 +49,13 @@ async def _fetch_date_range(
     max_results: int = 500,
     delay_seconds: float = 3.0,
 ) -> list[ArxivPaper]:
-    """Fetch arXiv papers within [start_date, end_date] for the given categories."""
+    """Fetch arXiv papers within [start_date, end_date] for the given categories.
+
+    Paginates via the `start` offset until a page returns fewer than max_results
+    entries (i.e. we've reached the end), instead of one-shot fetching — a
+    single request silently truncates at max_results with no signal that more
+    results existed.
+    """
     start_str = start_date.strftime("%Y%m%d")
     end_str = end_date.strftime("%Y%m%d")
 
@@ -63,23 +72,35 @@ async def _fetch_date_range(
             if i > 0:
                 await asyncio.sleep(delay_seconds)
 
-            params: dict[str, str | int] = {
-                "search_query": f"cat:{cat} AND submittedDate:[{start_str} TO {end_str}]",
-                "sortBy": "submittedDate",
-                "sortOrder": "descending",
-                "max_results": max_results,
-            }
-            try:
-                resp = await http.get(_BASE_URL, params=params)
-                resp.raise_for_status()
-            except httpx.HTTPError as exc:
-                print(f"  [warn] arXiv error for {cat}: {exc}")
-                continue
+            cat_papers: list[ArxivPaper] = []
+            for page in range(_MAX_PAGES_PER_WINDOW):
+                if page > 0:
+                    await asyncio.sleep(delay_seconds)
 
-            # _parse_feed keeps papers >= since; we use start_date as the floor
-            cat_papers = client._parse_feed(resp.text, since=start_date)  # type: ignore[attr-defined]
-            # Filter out papers submitted after end_date
-            cat_papers = [p for p in cat_papers if p.published_at <= end_date]
+                params: dict[str, str | int] = {
+                    "search_query": f"cat:{cat} AND submittedDate:[{start_str} TO {end_str}]",
+                    "sortBy": "submittedDate",
+                    "sortOrder": "descending",
+                    "start": page * max_results,
+                    "max_results": max_results,
+                }
+                try:
+                    resp = await http.get(_BASE_URL, params=params)
+                    resp.raise_for_status()
+                except httpx.HTTPError as exc:
+                    print(f"  [warn] arXiv error for {cat} (page {page}): {exc}")
+                    break
+
+                # _parse_feed keeps papers >= since; we use start_date as the floor
+                page_papers = client._parse_feed(resp.text, since=start_date)  # type: ignore[attr-defined]
+                page_papers = [p for p in page_papers if p.published_at <= end_date]
+                cat_papers.extend(page_papers)
+
+                if len(page_papers) < max_results:
+                    break  # reached the end of this category/window
+            else:
+                print(f"  [warn] {cat}: hit {_MAX_PAGES_PER_WINDOW}-page safety cap — "
+                      f"window may still be truncated, consider narrowing it")
 
             for p in cat_papers:
                 papers.setdefault(p.arxiv_id, p)
