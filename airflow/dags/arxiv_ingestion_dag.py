@@ -251,7 +251,7 @@ def build_knowledge_graph(**context) -> None:  # type: ignore[type-arg]
 
     extractor = EntityExtractor(
         ollama_url=settings.ollama_url,
-        model=settings.ollama_model,
+        model=settings.ollama_extraction_model,
         timeout=settings.ollama_request_timeout_seconds,
     )
 

@@ -19,7 +19,7 @@ def get_extractor(backend: str) -> BaseEntityExtractor:
         from app.graph.extractors.ollama import OllamaExtractor
         return OllamaExtractor(
             ollama_url=settings.ollama_url,
-            model=settings.ollama_model,
+            model=settings.ollama_extraction_model,
             timeout=settings.ollama_request_timeout_seconds,
         )
 

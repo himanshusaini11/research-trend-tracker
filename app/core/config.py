@@ -75,6 +75,7 @@ class Settings(BaseSettings):
     ollama_model: str = Field(..., description="Ollama model — set in .env.params")
     ollama_predict_model: str = Field(..., description="Ollama model for prediction endpoints — set in .env.params")
     ollama_simulation_model: str = Field(..., description="Ollama model for ARIS simulation agents — set in .env.params")
+    ollama_extraction_model: str = Field(..., description="Ollama model for entity extraction (graph building) — set in .env.params")
     ollama_request_timeout_seconds: int = 120
     ollama_predict_timeout_seconds: int = 300  # prediction prompts are larger — need more time
     predict_top_signals: int = 20              # top N signals fed to prediction synthesizer

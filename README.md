@@ -295,8 +295,9 @@ uv run streamlit run scripts/dashboard.py
 | `POSTGRES_DB` | `rtt` | No | PostgreSQL database |
 | `REDIS_HOST` | `localhost` | No | Redis host |
 | `OLLAMA_URL` | `http://localhost:11434` | No | Ollama API base URL |
-| `OLLAMA_MODEL` | `qwen3.5:27b` | No | Model for extraction, summarization, chat |
+| `OLLAMA_MODEL` | `qwen3.5:27b` | No | Model for summarization, chat |
 | `OLLAMA_PREDICT_MODEL` | `qwen3.5:27b` | No | Model for prediction synthesis |
+| `OLLAMA_EXTRACTION_MODEL` | `gemma4:e4b` | **Yes** | Model for entity extraction (graph building) — required like `OLLAMA_SIMULATION_MODEL`, but already set in the committed `.env.params`; separate from `OLLAMA_MODEL` so a smaller/faster model can be used for high-volume bulk extraction without affecting chat/summarization quality |
 | `OLLAMA_REQUEST_TIMEOUT_SECONDS` | `1200` | No | LLM timeout |
 | `ARXIV_CATEGORIES` | `["cs.AI","cs.LG","cs.CL","cs.CV","cs.NE","stat.ML","cs.IR","eess.SP","eess.IV"]` | No | Categories to ingest |
 | `SEMANTIC_SCHOLAR_API_KEY` | — | No | Increases S2 rate limit |
