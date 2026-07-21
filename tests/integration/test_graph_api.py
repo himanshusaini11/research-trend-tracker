@@ -129,6 +129,14 @@ async def test_graph_stats_returns_counts(
     assert "papers_processed" in body
     assert "last_run" in body
     assert isinstance(body["papers_processed"], int)
+    assert isinstance(body["total_papers"], int)
+    assert body["total_papers"] == 0
+    # Test fixture uses plain postgres:16 (no AGE extension) — endpoint must
+    # degrade to 0 rather than 500ing, same as a fresh deploy pre-pipeline-run.
+    assert body["concept_count"] == 0
+    assert body["edge_count"] == 0
+    assert body["date_range_start"] is None
+    assert body["date_range_end"] is None
 
 
 async def test_graph_stats_unauthenticated(test_client: AsyncClient) -> None:

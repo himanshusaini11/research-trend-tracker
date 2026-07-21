@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.core.logger import get_logger
 from app.core.models import Paper, PredictionReportRow, SimulationResultRow
 from app.core.rate_limiter import RateLimiter
+from app.graph.bridge_node_detector import _strip_agtype
 from app.graph.graph_analyzer import GraphAnalyzer
 from app.graph.prediction_synthesizer import PredictionSynthesizer
 from app.graph.report_archive import ReportArchive
@@ -38,6 +39,11 @@ class GenerateResponse(BaseModel):
 class GraphStats(BaseModel):
     papers_processed: int
     last_run: str | None
+    total_papers: int
+    concept_count: int
+    edge_count: int
+    date_range_start: str | None
+    date_range_end: str | None
 
 
 @router.get("/top-concepts", response_model=list[ConceptSignal])
@@ -101,7 +107,7 @@ async def graph_stats(
     _user: dict[str, Any] = Depends(get_current_user),
     rate_limiter: RateLimiter = Depends(get_rate_limiter),
 ) -> GraphStats:
-    """Return graph-level stats: papers processed and last pipeline run timestamp."""
+    """Return graph-level stats: papers processed, last pipeline run, and live corpus totals."""
     if not await rate_limiter.is_allowed(_user.get("sub", "anonymous")):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -119,7 +125,54 @@ async def graph_stats(
     )
     last_run = last_run_dt.isoformat() if last_run_dt else None
 
-    return GraphStats(papers_processed=papers_processed, last_run=last_run)
+    total_papers: int = (await db.scalar(select(func.count()).select_from(Paper))) or 0
+
+    date_min, date_max = (
+        await db.execute(select(func.min(Paper.published_at), func.max(Paper.published_at)))
+    ).one()
+    date_range_start = date_min.isoformat() if date_min else None
+    date_range_end = date_max.isoformat() if date_max else None
+
+    # AGE may not be installed/graph not yet created (e.g. fresh deploy before
+    # the first graph pipeline run, or a plain-Postgres test fixture) — degrade
+    # to 0 rather than 500ing the whole endpoint, same fallback pattern used
+    # in app/simulation/grounding.py for AGE-dependent reads.
+    concept_count = 0
+    edge_count = 0
+    try:
+        conn = await db.connection()
+        await conn.exec_driver_sql("LOAD 'age'")
+        await conn.exec_driver_sql('SET search_path = ag_catalog, "$user", public')
+
+        concept_row = (
+            await conn.exec_driver_sql(
+                "SELECT * FROM cypher('research_graph', $$ "
+                "MATCH (c:Concept) RETURN count(c) "
+                "$$) AS (cnt agtype)"
+            )
+        ).first()
+        concept_count = int(_strip_agtype(str(concept_row[0]))) if concept_row else 0
+
+        edge_row = (
+            await conn.exec_driver_sql(
+                "SELECT * FROM cypher('research_graph', $$ "
+                "MATCH ()-[e]->() RETURN count(e) "
+                "$$) AS (cnt agtype)"
+            )
+        ).first()
+        edge_count = int(_strip_agtype(str(edge_row[0]))) if edge_row else 0
+    except Exception as exc:
+        log.warning("graph_stats_age_unavailable", error=str(exc))
+
+    return GraphStats(
+        papers_processed=papers_processed,
+        last_run=last_run,
+        total_papers=total_papers,
+        concept_count=concept_count,
+        edge_count=edge_count,
+        date_range_start=date_range_start,
+        date_range_end=date_range_end,
+    )
 
 
 @router.get("/predictions/latest", response_model=list[ArchivedReport])
